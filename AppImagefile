@@ -1,0 +1,60 @@
+FROM fedora:latest
+
+LABEL maintainer="jcrabapple"
+LABEL description="NanoGPT Chat - Linux Desktop AI Chat Application"
+
+# Install system dependencies
+RUN dnf install -y \
+    python3 \
+    python3-pyqt6 \
+    python3-pyqt6-webengine \
+    python3-pip \
+    sqlite \
+    git \
+    && dnf clean all
+
+# Create application directory
+WORKDIR /opt/nanogpt-chat
+
+# Copy Python application
+COPY nanogpt_chat/ /opt/nanogpt-chat/
+
+# Copy compiled Rust library
+COPY target/release/libnanogpt_core.so /opt/nanogpt-chat/
+
+# Create data directory
+RUN mkdir -p /var/lib/nanogpt-chat
+
+# Copy library to system library path
+RUN cp /opt/nanogpt-chat/nanogpt_core.so /var/lib/nanogpt-chat/ && \
+    ldconfig
+
+# Set Python path
+ENV PYTHONPATH="/opt/nanogpt-chat:$PYTHONPATH"
+
+# Create desktop file
+RUN echo '[Desktop Entry]' > /usr/share/applications/nanogpt-chat.desktop && \
+    echo 'Name=NanoGPT Chat' >> /usr/share/applications/nanogpt-chat.desktop && \
+    echo 'Comment=Linux desktop AI chat application using NanoGPT API' >> /usr/share/applications/nanogpt-chat.desktop && \
+    echo 'Exec=/usr/bin/python3 -m nanogpt_chat.main' >> /usr/share/applications/nanogpt-chat.desktop && \
+    echo 'Icon=nanogpt-chat' >> /usr/share/applications/nanogpt-chat.desktop && \
+    echo 'Type=Application' >> /usr/share/applications/nanogpt-chat.desktop && \
+    echo 'Categories=Network;Chat;' >> /usr/share/applications/nanogpt-chat.desktop && \
+    echo 'StartupNotify=true' >> /usr/share/applications/nanogpt-chat.desktop && \
+    echo 'X-GNOME-UsesNotifications=true' >> /usr/share/applications/nanogpt-chat.desktop && \
+    echo 'X-AppImage-Version=1.0' >> /usr/share/applications/nanogpt-chat.desktop
+
+# Create icon (simple placeholder)
+RUN echo '<svg><rect width="64" height="64" fill="#0066CC"/></svg>' > /usr/share/icons/hicolor/64x64/apps/nanogpt-chat.svg && \
+    echo '<svg><rect width="128" height="128" fill="#0066CC"/></svg>' > /usr/share/icons/hicolor/128x128/apps/nanogpt-chat.svg
+
+# Create wrapper script for the app
+RUN echo '#!/bin/bash' > /usr/local/bin/nanogpt-chat && \
+    echo 'export PYTHONPATH="/opt/nanogpt-chat:$PYTHONPATH"' >> /usr/local/bin/nanogpt-chat && \
+    echo 'export LD_LIBRARY_PATH="/var/lib/nanogpt-chat:$LD_LIBRARY_PATH"' >> /usr/local/bin/nanogpt-chat && \
+    echo 'cd /opt/nanogpt-chat' >> /usr/local/bin/nanogpt-chat && \
+    echo 'exec python3 -m nanogpt_chat.main "$@"' >> /usr/local/bin/nanogpt-chat && \
+    chmod +x /usr/local/bin/nanogpt-chat
+
+# Set default run command
+CMD ["/usr/local/bin/nanogpt-chat"]
