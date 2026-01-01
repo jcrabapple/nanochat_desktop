@@ -1,14 +1,41 @@
-use reqwest::{Client, Error};
+use reqwest::{Client, Error, StatusCode};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::Mutex;
+use tokio::time::sleep;
 
 const BASE_URL: &str = "https://nano-gpt.com/api/v1";
+const MAX_RETRIES: u32 = 3;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ErrorCategory {
+    Authentication,
+    RateLimit,
+    Network,
+    Server,
+    InvalidRequest,
+    Unknown,
+}
+
+impl ErrorCategory {
+    pub fn from_status(status: StatusCode) -> Self {
+        match status {
+            StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => Self::Authentication,
+            StatusCode::TOO_MANY_REQUESTS => Self::RateLimit,
+            s if s.is_client_error() => Self::InvalidRequest,
+            s if s.is_server_error() => Self::Server,
+            _ => Self::Unknown,
+        }
+    }
+}
+
+// ... rest of the structs ...
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Message {
     pub role: String,
-    pub content: String,
+    pub content: serde_json::Value,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -24,6 +51,8 @@ pub struct ChatRequest {
     pub temperature: Option<f32>,
     pub max_tokens: Option<u32>,
     pub top_p: Option<f32>,
+    pub frequency_penalty: Option<f32>,
+    pub presence_penalty: Option<f32>,
     pub stream: Option<bool>,
 }
 
@@ -123,16 +152,48 @@ impl NanoGPTClient {
         request: ChatRequest,
     ) -> Result<ChatResponse, Error> {
         let auth = self.auth_headers().await?;
+        let mut retries = 0;
         
-        let response = self.client
-            .post(format!("{}/chat/completions", BASE_URL))
-            .header("Authorization", auth)
-            .header("Content-Type", "application/json")
-            .json(&request)
-            .send()
-            .await?;
+        loop {
+            let response = self.client
+                .post(format!("{}/chat/completions", BASE_URL))
+                .header("Authorization", &auth)
+                .header("Content-Type", "application/json")
+                .json(&request)
+                .send()
+                .await;
 
-        response.json().await
+            match response {
+                Ok(resp) => {
+                    let status = resp.status();
+                    if status.is_success() {
+                        return resp.json().await;
+                    }
+                    
+                    if status == StatusCode::TOO_MANY_REQUESTS || status.is_server_error() {
+                        if retries < MAX_RETRIES {
+                            retries += 1;
+                            let delay = Duration::from_millis(1000 * 2u64.pow(retries - 1));
+                            sleep(delay).await;
+                            continue;
+                        }
+                    }
+                    
+                    return resp.json().await;
+                }
+                Err(e) => {
+                    if e.is_timeout() || e.is_connect() {
+                        if retries < MAX_RETRIES {
+                            retries += 1;
+                            let delay = Duration::from_millis(1000 * 2u64.pow(retries - 1));
+                            sleep(delay).await;
+                            continue;
+                        }
+                    }
+                    return Err(e);
+                }
+            }
+        }
     }
 
     pub async fn list_models(&self) -> Result<Vec<ModelInfo>, Error> {

@@ -1,0 +1,13 @@
+#!/bin/bash
+HERE="$(dirname "$(readlink -f "${0}")")"
+export PYTHONPATH="${HERE}:${PYTHONPATH}"
+export LD_LIBRARY_PATH="${HERE}:${LD_LIBRARY_PATH}"
+
+# Install missing dependencies inside the AppDir context if needed, 
+# or ensure they are bundled. For a true AppImage, we should bundle them.
+# Let's use a bundled site-packages directory.
+mkdir -p "${HERE}/usr/lib/python3.14/site-packages"
+export PYTHONPATH="${HERE}/usr/lib/python3.14/site-packages:${PYTHONPATH}"
+
+# We will bundle the dependencies in the next step.
+exec python3 -m nanogpt_chat.main "$@"

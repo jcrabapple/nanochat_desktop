@@ -34,6 +34,7 @@ impl Database {
         let connection = Connection::open(path)?;
         
         connection.pragma_update(None, "foreign_keys", true)?;
+        connection.pragma_update(None, "journal_mode", "WAL")?;
         
         connection.execute(
             "CREATE TABLE IF NOT EXISTS chat_sessions (
@@ -129,6 +130,18 @@ impl Database {
         Ok(sessions)
     }
 
+    pub fn get_sessions_paginated(&self, limit: usize, offset: usize) -> Result<Vec<ChatSession>> {
+        let mut stmt = self.connection.prepare(
+            "SELECT id, title, model, system_prompt, temperature, created_at, updated_at FROM chat_sessions ORDER BY updated_at DESC LIMIT ? OFFSET ?",
+        )?;
+        
+        let sessions = stmt.query_map(params![limit as u32, offset as u32], row_to_session)?
+            .filter_map(|r| r.ok())
+            .collect();
+        
+        Ok(sessions)
+    }
+
     pub fn update_session_title(&self, id: &str, title: &str) -> Result<()> {
         let now = Utc::now().timestamp();
         
@@ -202,6 +215,48 @@ impl Database {
         })
     }
 
+    pub fn create_messages_batch(
+        &self,
+        messages: &[(&str, &str, &str, Option<u32>)], // session_id, role, content, tokens
+    ) -> Result<Vec<ChatMessage>> {
+        let transaction = self.connection.transaction()?;
+        let now = Utc::now().timestamp();
+        let mut created_messages = Vec::with_capacity(messages.len());
+        let mut session_ids_updated = std::collections::HashSet::new();
+
+        for (session_id, role, content, tokens) in messages {
+            let id = Uuid::new_v4().to_string();
+            
+            transaction.execute(
+                "INSERT INTO chat_messages (id, session_id, role, content, created_at, tokens) 
+                 VALUES (?, ?, ?, ?, ?, ?)",
+                params![id, session_id, role, content, now, tokens],
+            )?;
+            
+            created_messages.push(ChatMessage {
+                id: id.clone(),
+                session_id: (*session_id).to_string(),
+                role: (*role).to_string(),
+                content: (*content).to_string(),
+                created_at: Utc::now(),
+                tokens: *tokens,
+            });
+            
+            session_ids_updated.insert(*session_id);
+        }
+        
+        // Update session timestamps in batch
+        for session_id in session_ids_updated {
+            transaction.execute(
+                "UPDATE chat_sessions SET updated_at = ? WHERE id = ?",
+                params![now, session_id],
+            )?;
+        }
+        
+        transaction.commit()?;
+        Ok(created_messages)
+    }
+
     pub fn get_messages(&self, session_id: &str) -> Result<Vec<ChatMessage>> {
         let mut stmt = self.connection.prepare(
             "SELECT id, session_id, role, content, created_at, tokens 
@@ -225,6 +280,29 @@ impl Database {
         Ok(messages)
     }
 
+    pub fn get_messages_paginated(&self, session_id: &str, limit: usize, offset: usize) -> Result<Vec<ChatMessage>> {
+        let mut stmt = self.connection.prepare(
+            "SELECT id, session_id, role, content, created_at, tokens 
+             FROM chat_messages WHERE session_id = ? ORDER BY created_at ASC LIMIT ? OFFSET ?",
+        )?;
+        
+        let messages = stmt.query_map(params![session_id, limit as u32, offset as u32], |row| {
+            let timestamp: i64 = row.get(4)?;
+            Ok(ChatMessage {
+                id: row.get(0)?,
+                session_id: row.get(1)?,
+                role: row.get(2)?,
+                content: row.get(3)?,
+                created_at: DateTime::from_timestamp(timestamp, 0).unwrap_or_else(Utc::now),
+                tokens: row.get(5)?,
+            })
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+        
+        Ok(messages)
+    }
+
     pub fn delete_messages(&self, session_id: &str) -> Result<()> {
         self.connection.execute(
             "DELETE FROM chat_messages WHERE session_id = ?",
@@ -232,6 +310,23 @@ impl Database {
         )?;
         
         Ok(())
+    }
+
+    pub fn search_sessions(&self, query: &str) -> Result<Vec<ChatSession>> {
+        let pattern = format!("%{}%", query);
+        let mut stmt = self.connection.prepare(
+            "SELECT DISTINCT s.id, s.title, s.model, s.system_prompt, s.temperature, s.created_at, s.updated_at 
+             FROM chat_sessions s
+             LEFT JOIN chat_messages m ON s.id = m.session_id
+             WHERE s.title LIKE ? OR m.content LIKE ?
+             ORDER BY s.updated_at DESC",
+        )?;
+        
+        let sessions = stmt.query_map(params![pattern, pattern], row_to_session)?
+            .filter_map(|r| r.ok())
+            .collect();
+        
+        Ok(sessions)
     }
 }
 

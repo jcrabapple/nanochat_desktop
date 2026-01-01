@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=NanoGPT Chat
+Exec=AppRun
+Icon=nanogpt-chat
+Type=Application
+Categories=Utility;

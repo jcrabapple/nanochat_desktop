@@ -19,8 +19,6 @@ chrono = { version = "0.4", features = ["serde"] }
 thiserror = "1.0"
 secrecy = { version = "0.8", features = ["serde"] }
 once_cell = "1.18"
-home = "=0.5.9"
-dirs = "5.0"
 anyhow = "1.0"
 futures-util = "0.3"
 

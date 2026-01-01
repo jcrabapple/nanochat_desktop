@@ -14,78 +14,56 @@ pub enum CredentialError {
 pub struct CredentialManager;
 
 impl CredentialManager {
-    const SERVICE: &'static str = "nanogpt-chat";
-    const KEY_API_KEY: &'static str = "api_key";
-
     pub fn get_api_key() -> Result<SecretString, CredentialError> {
-        use std::fs;
-        
-        let config_dir = std::env::var("XDG_CONFIG_HOME")
-            .map(|p| std::path::PathBuf::from(p).join("nanogpt-chat"))
-            .ok()
-            .or_else(|| {
-                home::home_dir().map(|p| p.join(".config").join("nanogpt-chat"))
-            })
-            .unwrap_or(std::path::PathBuf::from(".config/nanogpt-chat"));
+        pyo3::Python::with_gil(|py| {
+            let module = py.import("nanogpt_chat.utils.credentials")
+                .map_err(|e| CredentialError::GetError(e.to_string()))?;
 
-        let key_path = config_dir.join("api_key");
+            let get_key = module.getattr("SecureCredentialManager")
+                .and_then(|cm| cm.getattr("get_api_key"))
+                .map_err(|e| CredentialError::GetError(e.to_string()))?;
 
-        if !key_path.exists() {
-            return Err(CredentialError::NotFound);
-        }
+            let result = get_key.call0()
+                .map_err(|e| CredentialError::GetError(e.to_string()))?;
 
-        match fs::read_to_string(&key_path) {
-            Ok(key) => {
-                let key = key.trim().to_string();
-                if key.is_empty() {
-                    Err(CredentialError::NotFound)
-                } else {
-                    Ok(SecretString::from(key))
-                }
+            match result.extract::<Option<String>>() {
+                Ok(Some(key)) => Ok(SecretString::from(key)),
+                Ok(None) => Err(CredentialError::NotFound),
+                Err(e) => Err(CredentialError::GetError(e.to_string())),
             }
-            Err(e) => Err(CredentialError::GetError(e.to_string())),
-        }
+        })
     }
 
     pub fn set_api_key(api_key: &str) -> Result<(), CredentialError> {
-        use std::fs;
-        
-        let config_dir = std::env::var("XDG_CONFIG_HOME")
-            .map(|p| std::path::PathBuf::from(p).join("nanogpt-chat"))
-            .ok()
-            .or_else(|| {
-                home::home_dir().map(|p| p.join(".config").join("nanogpt-chat"))
-            })
-            .unwrap_or(std::path::PathBuf::from(".config/nanogpt-chat"));
+        pyo3::Python::with_gil(|py| {
+            let module = py.import("nanogpt_chat.utils.credentials")
+                .map_err(|e| CredentialError::SetError(e.to_string()))?;
 
-        fs::create_dir_all(&config_dir)
-            .map_err(|e| CredentialError::SetError(e.to_string()))?;
+            let set_key = module.getattr("SecureCredentialManager")
+                .and_then(|cm| cm.getattr("set_api_key"))
+                .map_err(|e| CredentialError::SetError(e.to_string()))?;
 
-        fs::write(config_dir.join("api_key"), api_key)
-            .map_err(|e| CredentialError::SetError(e.to_string()))?;
+            set_key.call1((api_key,))
+                .map_err(|e| CredentialError::SetError(e.to_string()))?;
 
-        Ok(())
+            Ok(())
+        })
     }
 
     pub fn delete_api_key() -> Result<(), CredentialError> {
-        use std::fs;
-        
-        let config_dir = std::env::var("XDG_CONFIG_HOME")
-            .map(|p| std::path::PathBuf::from(p).join("nanogpt-chat"))
-            .ok()
-            .or_else(|| {
-                home::home_dir().map(|p| p.join(".config").join("nanogpt-chat"))
-            })
-            .unwrap_or(std::path::PathBuf::from(".config/nanogpt-chat"));
-
-        let key_path = config_dir.join("api_key");
-
-        if key_path.exists() {
-            fs::remove_file(&key_path)
+        pyo3::Python::with_gil(|py| {
+            let module = py.import("nanogpt_chat.utils.credentials")
                 .map_err(|e| CredentialError::SetError(e.to_string()))?;
-        }
 
-        Ok(())
+            let delete_key = module.getattr("SecureCredentialManager")
+                .and_then(|cm| cm.getattr("delete_api_key"))
+                .map_err(|e| CredentialError::SetError(e.to_string()))?;
+
+            delete_key.call0()
+                .map_err(|e| CredentialError::SetError(e.to_string()))?;
+
+            Ok(())
+        })
     }
 
     pub fn has_api_key() -> bool {

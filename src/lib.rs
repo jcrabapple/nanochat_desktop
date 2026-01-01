@@ -106,14 +106,30 @@ impl PyNanoGPTClient {
     fn chat_completion_stream(
         &self,
         model: String,
-        messages: Vec<(String, String)>,
+        messages: Vec<(String, PyObject)>,
         temperature: Option<f32>,
         max_tokens: Option<u32>,
+        top_p: Option<f32>,
+        frequency_penalty: Option<f32>,
+        presence_penalty: Option<f32>,
     ) -> PyResult<PyObject> {
         let client = self.client.clone();
         let messages: Vec<api::client::Message> = messages
             .into_iter()
-            .map(|(role, content)| api::client::Message { role, content })
+            .map(|(role, content)| {
+                let content_value = Python::with_gil(|py| {
+                    if let Ok(s) = content.extract::<String>(py) {
+                        serde_json::Value::String(s)
+                    } else {
+                        // For vision models, content is a list of objects
+                        // We convert it to a JSON string in Python then parse it in Rust
+                        let json = py.import("json").unwrap();
+                        let json_str: String = json.call_method1("dumps", (content,)).unwrap().extract().unwrap();
+                        serde_json::from_str(&json_str).unwrap_or(serde_json::Value::Null)
+                    }
+                });
+                api::client::Message { role, content: content_value }
+            })
             .collect();
 
         let request = api::client::ChatRequest {
@@ -121,7 +137,9 @@ impl PyNanoGPTClient {
             messages,
             temperature,
             max_tokens,
-            top_p: None,
+            top_p,
+            frequency_penalty,
+            presence_penalty,
             stream: Some(true),
         };
 
@@ -153,6 +171,7 @@ impl PyNanoGPTClient {
                                         break;
                                     }
                                     if let Ok(chunk) = serde_json::from_str::<api::client::StreamChunk>(data) {
+                                        // Check if this is the final chunk with usage info
                                         if let Some(choice) = chunk.choices.first() {
                                             if let Some(ref content) = choice.delta.content {
                                                 if tx.send(content.clone()).is_err() {
@@ -244,6 +263,19 @@ impl PyDatabase {
         Ok(sessions.into_iter().map(PySession::from).collect())
     }
 
+    /// Get paginated chat sessions, ordered by most recently updated.
+    fn get_sessions_paginated(&self, limit: usize, offset: usize) -> PyResult<Vec<PySession>> {
+        let db = self
+            .db
+            .lock()
+            .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+        let sessions = db
+            .get_sessions_paginated(limit, offset)
+            .map_err(|e| DatabaseError::new_err(e.to_string()))?;
+
+        Ok(sessions.into_iter().map(PySession::from).collect())
+    }
+
     /// Add a new message to an existing session.
     fn create_message(
         &self,
@@ -262,6 +294,28 @@ impl PyDatabase {
         Ok(message.id)
     }
 
+    /// Create multiple chat messages in a batch.
+    fn create_messages_batch(
+        &self,
+        messages: Vec<(String, String, String, Option<u32>)>, // session_id, role, content, tokens
+    ) -> PyResult<Vec<String>> {
+        let db = self
+            .db
+            .lock()
+            .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+        
+        // Convert to references for the Rust method
+        let message_refs: Vec<(&str, &str, &str, Option<u32>)> = messages
+            .iter()
+            .map(|(sid, r, c, t)| (sid.as_str(), r.as_str(), c.as_str(), *t))
+            .collect();
+            
+        let messages_result = db
+            .create_messages_batch(&message_refs)
+            .map_err(|e| DatabaseError::new_err(e.to_string()))?;
+        Ok(messages_result.into_iter().map(|m| m.id).collect())
+    }
+
     /// Get all messages for a specific session.
     fn get_messages(&self, session_id: String) -> PyResult<Vec<PyMessage>> {
         let db = self
@@ -270,6 +324,19 @@ impl PyDatabase {
             .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
         let messages = db
             .get_messages(&session_id)
+            .map_err(|e| DatabaseError::new_err(e.to_string()))?;
+
+        Ok(messages.into_iter().map(PyMessage::from).collect())
+    }
+
+    /// Get paginated messages for a specific session.
+    fn get_messages_paginated(&self, session_id: String, limit: usize, offset: usize) -> PyResult<Vec<PyMessage>> {
+        let db = self
+            .db
+            .lock()
+            .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+        let messages = db
+            .get_messages_paginated(&session_id, limit, offset)
             .map_err(|e| DatabaseError::new_err(e.to_string()))?;
 
         Ok(messages.into_iter().map(PyMessage::from).collect())
@@ -317,6 +384,28 @@ impl PyDatabase {
         db.update_session_params(&session_id, &system_prompt, temperature)
             .map_err(|e| DatabaseError::new_err(e.to_string()))?;
         Ok(())
+    }
+    
+    /// Update the title for a specific session.
+    fn update_session_title(&self, session_id: String, title: String) -> PyResult<()> {
+        let db = self
+            .db
+            .lock()
+            .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+        db.update_session_title(&session_id, &title)
+            .map_err(|e| DatabaseError::new_err(e.to_string()))?;
+        Ok(())
+    }
+
+    /// Search for sessions matching a query in title or message content.
+    fn search_sessions(&self, query: String) -> PyResult<Vec<PySession>> {
+        let db = self
+            .db
+            .lock()
+            .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+        let sessions = db.search_sessions(&query)
+            .map_err(|e| DatabaseError::new_err(e.to_string()))?;
+        Ok(sessions.into_iter().map(PySession::from).collect())
     }
 }
 
