@@ -108,7 +108,7 @@ cargo:rerun-if-env-changed=HOST_PKG_CONFIG_SYSROOT_DIR
 cargo:rerun-if-env-changed=PKG_CONFIG_SYSROOT_DIR
 cargo:rerun-if-changed=build/expando.c
 OPT_LEVEL = Some(3)
-OUT_DIR = Some(/var/home/jason/nanochat_desktop/target/release/build/openssl-sys-48a7898ea4cc3ab2/out)
+OUT_DIR = Some(/home/jason/nanochat_desktop/target/release/build/openssl-sys-48a7898ea4cc3ab2/out)
 TARGET = Some(x86_64-unknown-linux-gnu)
 CARGO_ENCODED_RUSTFLAGS = Some()
 HOST = Some(x86_64-unknown-linux-gnu)
@@ -134,12 +134,9 @@ cargo:rerun-if-env-changed=CFLAGS_x86_64_unknown_linux_gnu
 CFLAGS_x86_64_unknown_linux_gnu = None
 cargo:rerun-if-env-changed=CFLAGS_x86_64-unknown-linux-gnu
 CFLAGS_x86_64-unknown-linux-gnu = None
-version: 3_5_4
-cargo:rustc-cfg=osslconf="OPENSSL_NO_EC2M"
-cargo:rustc-cfg=osslconf="OPENSSL_NO_ENGINE"
+version: 3_6_0
 cargo:rustc-cfg=osslconf="OPENSSL_NO_SSL3_METHOD"
-cargo:rustc-cfg=osslconf="OPENSSL_NO_SM4"
-cargo:conf=OPENSSL_NO_EC2M,OPENSSL_NO_ENGINE,OPENSSL_NO_SSL3_METHOD,OPENSSL_NO_SM4
+cargo:conf=OPENSSL_NO_SSL3_METHOD
 cargo:rustc-cfg=openssl
 cargo:rustc-cfg=ossl101
 cargo:rustc-cfg=ossl102
@@ -158,5 +155,5 @@ cargo:rustc-cfg=ossl320
 cargo:rustc-cfg=ossl330
 cargo:rustc-cfg=ossl340
 cargo:rustc-cfg=ossl350
-cargo:version_number=30500040
+cargo:version_number=30600000
 cargo:include=/usr/include

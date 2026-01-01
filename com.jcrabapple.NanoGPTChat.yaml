@@ -1,0 +1,32 @@
+app-id: com.jcrabapple.NanoGPTChat
+runtime: org.kde.Platform
+runtime-version: '6.6'
+sdk: org.kde.Sdk
+command: nanochat-desktop
+finish-args:
+  - --share=ipc
+  - --socket=fallback-x11
+  - --socket=wayland
+  - --share=network
+  - --device=dri
+  - --filesystem=xdg-config/nanogpt-chat:create
+  - --talk-name=org.freedesktop.secrets
+modules:
+  - name: python3-dependencies
+    buildsystem: simple
+    build-commands:
+      - pip3 install --prefix=/app PyQt6 PyQt6-WebEngine keyring secretstorage toml
+  
+  - name: nanochat-desktop
+    buildsystem: simple
+    sources:
+      - type: dir
+        path: .
+    build-commands:
+      - cargo build --release
+      - cp target/release/libnanogpt_core.so nanogpt_chat/nanogpt_core.so
+      - mkdir -p /app/bin
+      - mkdir -p /app/share/nanochat-desktop
+      - cp -r . /app/share/nanochat-desktop/
+      - ln -s /app/share/nanochat-desktop/nanogpt_chat/main.py /app/bin/nanochat-desktop
+      - chmod +x /app/bin/nanochat-desktop

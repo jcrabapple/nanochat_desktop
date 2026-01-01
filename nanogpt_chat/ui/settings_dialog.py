@@ -2,10 +2,11 @@ from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
     QLineEdit, QPushButton, QGroupBox, QComboBox,
     QSpinBox, QDoubleSpinBox, QCheckBox, QLabel,
-    QMessageBox, QTabWidget, QWidget, QFrame
+    QMessageBox, QTabWidget, QWidget, QFrame, QTextEdit,
+    QCompleter
 )
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont, QIcon
+from PyQt6.QtCore import Qt, QSortFilterProxyModel
+from PyQt6.QtGui import QFont, QIcon, QStandardItemModel, QStandardItem
 
 
 class SettingsDialog(QDialog):
@@ -24,29 +25,30 @@ class SettingsDialog(QDialog):
         header.setFont(QFont("", 16, QFont.Weight.Bold))
         header.setStyleSheet("""
             padding: 20px 24px;
-            background: qlineargradient(
-                x1: 0, y1: 0, x2: 1, y2: 0,
-                stop: 0 #0066CC, stop: 1 #00A86B
-            );
+            background-color: #252526;
             color: white;
             font-size: 18px;
             font-weight: bold;
+            border-bottom: 1px solid #333333;
         """)
         layout.addWidget(header)
         
-        tab_widget = QTabWidget()
-        tab_widget.setStyleSheet("""
+        self.tab_widget = QTabWidget()
+        self.tab_widget.setStyleSheet("""
             QTabWidget::pane {
                 border: none;
-                background-color: white;
+                background-color: #1e1e1e;
             }
             QTabBar::tab {
                 padding: 12px 24px;
                 font-size: 14px;
+                background-color: #252526;
+                color: #888;
             }
             QTabBar::tab:selected {
-                border-bottom: 2px solid #0066CC;
-                color: #0066CC;
+                border-bottom: 2px solid #007acc;
+                color: #ffffff;
+                background-color: #1e1e1e;
             }
         """)
         
@@ -57,7 +59,7 @@ class SettingsDialog(QDialog):
         
         api_header = QLabel("API Configuration")
         api_header.setFont(QFont("", 12, QFont.Weight.Bold))
-        api_header.setStyleSheet("color: #333;")
+        api_header.setStyleSheet("color: #cccccc;")
         api_layout.addRow(api_header)
         
         self.api_key_input = QLineEdit()
@@ -66,12 +68,14 @@ class SettingsDialog(QDialog):
         self.api_key_input.setStyleSheet("""
             QLineEdit {
                 padding: 12px;
-                border: 2px solid #E0E0E0;
+                border: 1px solid #3c3c3c;
                 border-radius: 8px;
                 font-size: 14px;
+                background-color: #3c3c3c;
+                color: #cccccc;
             }
             QLineEdit:focus {
-                border-color: #0066CC;
+                border-color: #007acc;
             }
         """)
         api_layout.addRow("API Key:", self.api_key_input)
@@ -88,20 +92,20 @@ class SettingsDialog(QDialog):
         self.test_api_btn.setStyleSheet("""
             QPushButton {
                 padding: 10px 20px;
-                background-color: #0066CC;
-                color: white;
-                border: none;
+                background-color: #3c3c3c;
+                color: #cccccc;
+                border: 1px solid #3c3c3c;
                 border-radius: 6px;
                 font-weight: 600;
             }
             QPushButton:hover {
-                background-color: #0055AA;
+                background-color: #454545;
             }
         """)
         self.test_api_btn.clicked.connect(self.test_api)
         api_layout.addRow("", self.test_api_btn)
         
-        tab_widget.addTab(api_tab, "API")
+        self.tab_widget.addTab(api_tab, "API")
         
         model_tab = QWidget()
         model_layout = QFormLayout(model_tab)
@@ -110,26 +114,61 @@ class SettingsDialog(QDialog):
         
         model_header = QLabel("Model Settings")
         model_header.setFont(QFont("", 12, QFont.Weight.Bold))
-        model_header.setStyleSheet("color: #333;")
+        model_header.setStyleSheet("color: #cccccc;")
         model_layout.addRow(model_header)
         
         self.default_model = QComboBox()
-        self.default_model.addItems([
-            "gpt-4o",
-            "gpt-4o-mini",
-            "gpt-4-turbo",
-            "claude-3-opus",
-            "claude-3-sonnet",
-        ])
+        self.default_model.setEditable(True)
+        self.default_model.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        self.default_model.completer().setFilterMode(Qt.MatchFlag.MatchContains)
+        self.default_model.completer().setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
         self.default_model.setStyleSheet("""
             QComboBox {
                 padding: 10px;
-                border: 2px solid #E0E0E0;
+                border: 1px solid #3c3c3c;
                 border-radius: 8px;
                 font-size: 14px;
+                background-color: #3c3c3c;
+                color: #cccccc;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #3c3c3c;
+                color: #cccccc;
+                selection-background-color: #007acc;
             }
         """)
         model_layout.addRow("Default Model:", self.default_model)
+        
+        self.default_system_prompt = QTextEdit()
+        self.default_system_prompt.setMaximumHeight(100)
+        self.default_system_prompt.setStyleSheet("""
+            QTextEdit {
+                padding: 10px;
+                border: 1px solid #3c3c3c;
+                border-radius: 8px;
+                font-size: 14px;
+                background-color: #3c3c3c;
+                color: #cccccc;
+            }
+        """)
+        model_layout.addRow("Default System Prompt:", self.default_system_prompt)
+        
+        self.fetch_models_btn = QPushButton("Fetch Available Models")
+        self.fetch_models_btn.setStyleSheet("""
+            QPushButton {
+                padding: 8px 16px;
+                background-color: #3c3c3c;
+                color: #cccccc;
+                border: 1px solid #3c3c3c;
+                border-radius: 6px;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background-color: #454545;
+            }
+        """)
+        self.fetch_models_btn.clicked.connect(self.fetch_models)
+        model_layout.addRow("", self.fetch_models_btn)
         
         self.temperature = QDoubleSpinBox()
         self.temperature.setRange(0.0, 2.0)
@@ -139,8 +178,10 @@ class SettingsDialog(QDialog):
         self.temperature.setStyleSheet("""
             QDoubleSpinBox {
                 padding: 10px;
-                border: 2px solid #E0E0E0;
+                border: 1px solid #3c3c3c;
                 border-radius: 8px;
+                background-color: #3c3c3c;
+                color: #cccccc;
             }
         """)
         model_layout.addRow("Temperature:", self.temperature)
@@ -151,13 +192,15 @@ class SettingsDialog(QDialog):
         self.max_tokens.setStyleSheet("""
             QSpinBox {
                 padding: 10px;
-                border: 2px solid #E0E0E0;
+                border: 1px solid #3c3c3c;
                 border-radius: 8px;
+                background-color: #3c3c3c;
+                color: #cccccc;
             }
         """)
         model_layout.addRow("Max Tokens:", self.max_tokens)
         
-        tab_widget.addTab(model_tab, "Model")
+        self.tab_widget.addTab(model_tab, "Model")
         
         appearance_tab = QWidget()
         appearance_layout = QFormLayout(appearance_tab)
@@ -166,7 +209,7 @@ class SettingsDialog(QDialog):
         
         appearance_header = QLabel("Appearance")
         appearance_header.setFont(QFont("", 12, QFont.Weight.Bold))
-        appearance_header.setStyleSheet("color: #333;")
+        appearance_header.setStyleSheet("color: #cccccc;")
         appearance_layout.addRow(appearance_header)
         
         self.dark_mode = QCheckBox("Dark Mode")
@@ -174,6 +217,7 @@ class SettingsDialog(QDialog):
             QCheckBox {
                 padding: 8px;
                 font-size: 14px;
+                color: #cccccc;
             }
         """)
         appearance_layout.addRow("Theme:", self.dark_mode)
@@ -184,15 +228,17 @@ class SettingsDialog(QDialog):
         self.font_size.setStyleSheet("""
             QSpinBox {
                 padding: 10px;
-                border: 2px solid #E0E0E0;
+                border: 1px solid #3c3c3c;
                 border-radius: 8px;
+                background-color: #3c3c3c;
+                color: #cccccc;
             }
         """)
         appearance_layout.addRow("Font Size:", self.font_size)
         
-        tab_widget.addTab(appearance_tab, "Appearance")
+        self.tab_widget.addTab(appearance_tab, "Appearance")
         
-        layout.addWidget(tab_widget)
+        layout.addWidget(self.tab_widget)
         
         button_layout = QHBoxLayout()
         button_layout.setContentsMargins(24, 20, 24, 20)
@@ -202,14 +248,14 @@ class SettingsDialog(QDialog):
         self.cancel_btn.setStyleSheet("""
             QPushButton {
                 padding: 10px 24px;
-                background-color: #E0E0E0;
-                color: #333;
+                background-color: #3c3c3c;
+                color: #cccccc;
                 border: none;
                 border-radius: 6px;
                 font-weight: 600;
             }
             QPushButton:hover {
-                background-color: #D0D0D0;
+                background-color: #454545;
             }
         """)
         self.cancel_btn.clicked.connect(self.reject)
@@ -219,17 +265,14 @@ class SettingsDialog(QDialog):
         self.save_btn.setStyleSheet("""
             QPushButton {
                 padding: 10px 24px;
-                background: qlineargradient(
-                    x1: 0, y1: 0, x2: 1, y2: 0,
-                    stop: 0 #0066CC, stop: 1 #00A86B
-                );
+                background-color: #007acc;
                 color: white;
                 border: none;
                 border-radius: 6px;
                 font-weight: 600;
             }
             QPushButton:hover {
-                opacity: 0.9;
+                background-color: #118ad3;
             }
         """)
         self.save_btn.clicked.connect(self.save_settings)
@@ -237,12 +280,62 @@ class SettingsDialog(QDialog):
         
         layout.addLayout(button_layout)
     
+    def fetch_models(self):
+        api_key = self.api_key_input.text().strip()
+        if not api_key:
+            QMessageBox.warning(self, "Warning", "Please enter an API key first.")
+            return
+            
+        self.fetch_models_btn.setEnabled(False)
+        self.fetch_models_btn.setText("Fetching...")
+        
+        try:
+            from nanogpt_core import PyNanoGPTClient
+            client = PyNanoGPTClient(api_key)
+            models = client.list_models()
+            
+            current_model = self.default_model.currentText()
+            self.default_model.clear()
+            self.default_model.addItems(sorted(models))
+            
+            idx = self.default_model.findText(current_model)
+            if idx >= 0:
+                self.default_model.setCurrentIndex(idx)
+            else:
+                self.default_model.setEditText(current_model)
+            
+            QMessageBox.information(self, "Success", f"Fetched {len(models)} models.")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to fetch models: {e}")
+        finally:
+            self.fetch_models_btn.setEnabled(True)
+            self.fetch_models_btn.setText("Fetch Available Models")
+    
     def load_settings(self):
         try:
-            from nanogpt_core import PyCredentialManager
-            api_key = PyCredentialManager.get_api_key()
+            from nanogpt_chat.utils.credentials import SecureCredentialManager
+            from nanogpt_chat.utils import get_settings
+            
+            settings = get_settings()
+            api_key = SecureCredentialManager.get_api_key()
             if api_key:
                 self.api_key_input.setText(api_key)
+            
+            # Load model settings
+            idx = self.default_model.findText(settings.get("api", "default_model"))
+            if idx >= 0:
+                self.default_model.setCurrentIndex(idx)
+            else:
+                self.default_model.setEditText(settings.get("api", "default_model"))
+                
+            self.default_system_prompt.setPlainText(settings.get("api", "default_system_prompt"))
+            self.temperature.setValue(settings.get("api", "temperature"))
+            self.max_tokens.setValue(settings.get("api", "max_tokens"))
+            
+            # Load UI settings
+            self.dark_mode.setChecked(settings.get("ui", "dark_mode"))
+            self.font_size.setValue(settings.get("ui", "font_size"))
+            
         except Exception as e:
             print(f"Error loading settings: {e}")
     
@@ -255,6 +348,8 @@ class SettingsDialog(QDialog):
         try:
             from nanogpt_core import PyNanoGPTClient
             client = PyNanoGPTClient(api_key)
+            # Use gpt-4o-mini for a cheap test
+            client.chat_completion_sync("gpt-4o-mini", [("user", "hi")], 0.7, 10)
             QMessageBox.information(self, "Success", "API connection successful!")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"API connection failed: {e}")
@@ -267,8 +362,22 @@ class SettingsDialog(QDialog):
             return
         
         try:
-            from nanogpt_core import PyCredentialManager
-            PyCredentialManager.set_api_key(api_key)
+            from nanogpt_chat.utils.credentials import SecureCredentialManager
+            from nanogpt_chat.utils import get_settings
+            
+            settings = get_settings()
+            
+            # Save to keyring
+            SecureCredentialManager.set_api_key(api_key)
+            
+            # Save other settings
+            settings.set("api", "default_model", self.default_model.currentText())
+            settings.set("api", "default_system_prompt", self.default_system_prompt.toPlainText())
+            settings.set("api", "temperature", self.temperature.value())
+            settings.set("api", "max_tokens", self.max_tokens.value())
+            settings.set("ui", "dark_mode", self.dark_mode.isChecked())
+            settings.set("ui", "font_size", self.font_size.value())
+            
             QMessageBox.information(self, "Success", "Settings saved successfully!")
             self.accept()
         except Exception as e:

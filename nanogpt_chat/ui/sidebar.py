@@ -7,6 +7,7 @@ from datetime import datetime
 class Sidebar(QWidget):
     session_selected = pyqtSignal(str)
     new_chat = pyqtSignal()
+    settings_requested = pyqtSignal()
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -18,20 +19,19 @@ class Sidebar(QWidget):
         layout.setSpacing(0)
         
         self.setStyleSheet("""
-            background-color: #f8f9fa;
+            background-color: #252526;
+            border-right: 1px solid #333333;
         """)
         
         header = QLabel("NanoGPT")
         header.setFont(QFont("", 14, QFont.Weight.Bold))
         header.setStyleSheet("""
             padding: 20px 16px 16px 16px;
-            background: qlineargradient(
-                x1: 0, y1: 0, x2: 1, y2: 0,
-                stop: 0 #0066CC, stop: 1 #00A86B
-            );
-            color: white;
+            background-color: #252526;
+            color: #ffffff;
             font-size: 16px;
             font-weight: bold;
+            border-bottom: 1px solid #333333;
         """)
         layout.addWidget(header)
         
@@ -39,48 +39,68 @@ class Sidebar(QWidget):
         self.session_list.setStyleSheet("""
             QListWidget {
                 border: none;
-                background-color: #F5F7FA;
+                background-color: #252526;
+                color: #cccccc;
             }
             QListWidget::item {
-                padding: 14px 16px;
-                border-bottom: 1px solid #EAEEF2;
+                padding: 12px 16px;
+                border-bottom: 1px solid #333333;
                 background-color: transparent;
             }
             QListWidget::item:hover {
-                background-color: #E8EEF5;
+                background-color: #2a2d2e;
             }
             QListWidget::item:selected {
-                background-color: #0066CC;
-                color: white;
+                background-color: #37373d;
+                color: #ffffff;
             }
         """)
         self.session_list.itemClicked.connect(self.on_session_clicked)
         layout.addWidget(self.session_list)
         
+        button_container = QWidget()
+        button_container.setStyleSheet("background-color: #252526; border-top: 1px solid #333333;")
+        btn_layout = QVBoxLayout(button_container)
+        btn_layout.setContentsMargins(12, 12, 12, 12)
+        btn_layout.setSpacing(8)
+        
         new_chat_btn = QPushButton("+ New Chat")
         new_chat_btn.setStyleSheet("""
             QPushButton {
-                margin: 12px 16px;
-                padding: 14px;
-                background: qlineargradient(
-                    x1: 0, y1: 0, x2: 1, y2: 0,
-                    stop: 0 #0066CC, stop: 1 #00A86B
-                );
+                padding: 10px;
+                background-color: #007acc;
                 color: white;
                 border: none;
-                border-radius: 10px;
+                border-radius: 6px;
                 font-weight: 600;
-                font-size: 14px;
+                font-size: 13px;
             }
             QPushButton:hover {
-                opacity: 0.9;
-            }
-            QPushButton:pressed {
-                opacity: 0.8;
+                background-color: #118ad3;
             }
         """)
         new_chat_btn.clicked.connect(self.new_chat.emit)
-        layout.addWidget(new_chat_btn)
+        btn_layout.addWidget(new_chat_btn)
+        
+        settings_btn = QPushButton("Settings")
+        settings_btn.setStyleSheet("""
+            QPushButton {
+                padding: 10px;
+                background-color: #3c3c3c;
+                color: #cccccc;
+                border: 1px solid #3c3c3c;
+                border-radius: 6px;
+                font-weight: 600;
+                font-size: 13px;
+            }
+            QPushButton:hover {
+                background-color: #454545;
+            }
+        """)
+        settings_btn.clicked.connect(self.settings_requested.emit)
+        btn_layout.addWidget(settings_btn)
+        
+        layout.addWidget(button_container)
     
     def update_sessions(self, sessions):
         self.session_list.clear()

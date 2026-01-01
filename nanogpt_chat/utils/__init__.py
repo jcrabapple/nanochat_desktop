@@ -15,14 +15,24 @@ def get_config_dir():
 def get_database_path():
     return get_data_dir() / "chat.db"
 
+from nanogpt_chat.utils.settings import SettingsManager
+
+# Global settings instance
+_settings = None
+
+def get_settings():
+    global _settings
+    if _settings is None:
+        _settings = SettingsManager()
+    return _settings
+
 def get_api_client():
     try:
-        from nanogpt_core import PyCredentialManager, PyNanoGPTClient
-        if not PyCredentialManager.has_api_key():
+        from nanogpt_chat.utils.credentials import SecureCredentialManager
+        api_key = SecureCredentialManager.get_api_key()
+        if not api_key:
             return None
-        api_key = PyCredentialManager.get_api_key()
-        if api_key is None:
-            return None
+        from nanogpt_core import PyNanoGPTClient
         return PyNanoGPTClient(api_key)
     except ImportError:
         return None

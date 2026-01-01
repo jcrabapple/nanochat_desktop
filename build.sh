@@ -1,34 +1,38 @@
 #!/bin/bash
 set -e
 
-echo "Building NanoGPT Chat..."
+# Colors for output
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+NC='\033[0m'
 
-# Create directories
-mkdir -p nanogpt_chat/resources
+echo -e "${GREEN}Starting build process...${NC}"
 
-# Build Rust library
-echo "Building Rust core library..."
-cargo build --release
+# Check for required tools
+command -v cargo >/dev/null 2>&1 || { echo -e "${RED}Error: cargo is not installed.${NC}"; exit 1; }
+command -v python3 >/dev/null 2>&1 || { echo -e "${RED}Error: python3 is not installed.${NC}"; exit 1; }
 
-# Install Python dependencies
-echo "Installing Python dependencies..."
-pip install -e .
-
-# Copy the Rust library to the Python package
-if [ -f "target/release/libnanogpt_core.so" ]; then
-    cp target/release/libnanogpt_core.so nanogpt_chat/
-    echo "Copied libnanogpt_core.so to nanogpt_chat/"
-elif [ -f "target/release/libnanogpt_core.dylib" ]; then
-    cp target/release/libnanogpt_core.dylib nanogpt_chat/
-    echo "Copied libnanogpt_core.dylib to nanogpt_chat/"
-elif [ -f "target/release/nanogpt_core.pyd" ]; then
-    cp target/release/nanogpt_core.pyd nanogpt_chat/
-    echo "Copied nanogpt_core.pyd to nanogpt_chat/"
-else
-    echo "Warning: Could not find compiled Rust library"
+# Activate virtual environment if it exists
+if [ -d "venv" ]; then
+    echo "Activating virtual environment..."
+    source venv/bin/activate
 fi
 
-echo "Build complete!"
-echo ""
-echo "To run the application:"
-echo "  python -m nanogpt_chat.main"
+# Build Rust library
+echo "Building Rust library..."
+export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
+cargo build --release
+
+# Determine library extension based on OS
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    LIB_EXT="dylib"
+else
+    LIB_EXT="so"
+fi
+
+# Copy library to Python package
+echo "Updating Python extension..."
+cp target/release/libnanogpt_core.${LIB_EXT} nanogpt_chat/nanogpt_core.so
+
+echo -e "${GREEN}Build successful!${NC}"
+echo "To run the app: export PYTHONPATH=\$PYTHONPATH:. && python3 -m nanogpt_chat.main"

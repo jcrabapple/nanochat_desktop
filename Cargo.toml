@@ -2,47 +2,29 @@
 name = "nanogpt-core"
 version = "0.1.0"
 edition = "2021"
-authors = ["NanoGPT Chat Team"]
-description = "Core library for NanoGPT Chat application"
-repository = "https://github.com/nanogpt/chat"
-license = "MIT"
 
 [lib]
 name = "nanogpt_core"
-crate-type = ["cdylib", "rlib"]
+crate-type = ["cdylib"]
 
 [dependencies]
 reqwest = { version = "0.11", features = ["json", "stream"] }
 tokio = { version = "1", features = ["full"] }
-
-rusqlite = { version = "0.29", features = ["bundled", "trace"] }
-sqlx = { version = "0.7", features = ["sqlite", "runtime-tokio"] }
-
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-
+rusqlite = { version = "0.29", features = ["bundled"] }
 pyo3 = { version = "0.20", features = ["extension-module"] }
-
-secrecy = "0.8"
+uuid = { version = "1.4", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
 thiserror = "1.0"
+secrecy = { version = "0.8", features = ["serde"] }
+once_cell = "1.18"
+home = "0.5"
+dirs = "5.0"
 anyhow = "1.0"
 
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-
-chrono = { version = "0.4", features = ["serde"] }
-uuid = { version = "1", features = ["v4", "serde"] }
-dirs = "5.0"
-home = "0.5"
+[dev-dependencies]
+tempfile = "3.8"
 
 [build-dependencies]
-bindgen = "0.69"
-
-[features]
-default = []
-pyo3 = ["pyo3/extension-module"]
-
-[profile.release]
-opt-level = 3
-lto = true
-codegen-units = 1
+pyo3-build-config = "0.20"

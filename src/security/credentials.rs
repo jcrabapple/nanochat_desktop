@@ -1,4 +1,4 @@
-use secrecy::{ExposeSecret, SecretString};
+use secrecy::SecretString;
 use thiserror::Error;
 
 #[derive(Error, Debug)]

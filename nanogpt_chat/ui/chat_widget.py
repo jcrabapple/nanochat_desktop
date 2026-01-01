@@ -17,13 +17,13 @@ class ChatMessageWidget(QFrame):
         layout.setSpacing(8)
         
         if self.role == "user":
-            header_color = "#1a73e8"
-            bubble_color = "#e8f0fe"
-            bubble_border = "#c2dbff"
+            header_color = "#4fc3f7"
+            bubble_color = "#2b2b2b"
+            bubble_border = "#3c3c3c"
         else:
-            header_color = "#137333"
-            bubble_color = "#e6f4ea"
-            bubble_border = "#ace1af"
+            header_color = "#81c784"
+            bubble_color = "#252526"
+            bubble_border = "#333333"
         
         role_label = QLabel("You" if self.role == "user" else "Assistant")
         role_font = QFont()
@@ -38,7 +38,7 @@ class ChatMessageWidget(QFrame):
         content_label.setWordWrap(True)
         content_label.setTextFormat(Qt.TextFormat.PlainText)
         content_label.setFont(QFont("", 12))
-        content_label.setStyleSheet(f"color: #202124;")
+        content_label.setStyleSheet(f"color: #cccccc;")
         
         layout.addWidget(content_label)
         
@@ -66,7 +66,7 @@ class ChatWidget(QWidget):
         
         self.setStyleSheet("""
             ChatWidget {
-                background-color: #f1f3f4;
+                background-color: #1e1e1e;
             }
         """)
         

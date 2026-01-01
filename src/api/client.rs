@@ -18,7 +18,6 @@ pub struct ChatRequest {
     pub temperature: Option<f32>,
     pub max_tokens: Option<u32>,
     pub top_p: Option<f32>,
-    pub stream: Option<bool>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -73,11 +72,16 @@ pub struct StreamChoice {
 #[derive(Debug, Clone, Deserialize)]
 pub struct ModelInfo {
     pub id: String,
-    pub name: String,
+    pub name: Option<String>,
     pub object: Option<String>,
     pub created: Option<u64>,
     pub owned_by: Option<String>,
     pub permission: Option<Vec<serde_json::Value>>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ModelListResponse {
+    pub data: Vec<ModelInfo>,
 }
 
 pub struct NanoGPTClient {
@@ -105,7 +109,7 @@ impl NanoGPTClient {
         let auth = self.auth_headers().await?;
         
         let response = self.client
-            .post(&format!("{}/chat/completions", BASE_URL))
+            .post(format!("{}/chat/completions", BASE_URL))
             .header("Authorization", auth)
             .header("Content-Type", "application/json")
             .json(&request)
@@ -118,12 +122,14 @@ impl NanoGPTClient {
     pub async fn list_models(&self) -> Result<Vec<ModelInfo>, Error> {
         let auth = self.auth_headers().await?;
         
-        self.client
-            .get(&format!("{}/models", BASE_URL))
+        let response: ModelListResponse = self.client
+            .get(format!("{}/models", BASE_URL))
             .header("Authorization", auth)
             .send()
             .await?
             .json()
-            .await
+            .await?;
+            
+        Ok(response.data)
     }
 }

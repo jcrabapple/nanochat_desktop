@@ -18,30 +18,61 @@ def main():
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
         }
         QWidget {
-            background-color: #f8f9fa;
-            color: #3c4043;
+            background-color: #1e1e1e;
+            color: #e0e0e0;
         }
         QLabel {
-            color: #3c4043;
+            color: #e0e0e0;
         }
         QMenuBar {
-            background-color: #f8f9fa;
-            color: #3c4043;
+            background-color: #252526;
+            color: #cccccc;
+            border-bottom: 1px solid #333333;
         }
         QMenuBar::item:selected {
-            background-color: #e8eaed;
+            background-color: #3e3e3e;
         }
         QMenu {
-            background-color: white;
-            border: 1px solid #dadce0;
+            background-color: #252526;
+            color: #cccccc;
+            border: 1px solid #454545;
         }
         QMenu::item:selected {
-            background-color: #e8f0fe;
-            color: #1a73e8;
+            background-color: #094771;
+            color: white;
+        }
+        QScrollArea {
+            border: none;
+            background-color: #1e1e1e;
+        }
+        QScrollBar:vertical {
+            border: none;
+            background: #252526;
+            width: 10px;
+            margin: 0px;
+        }
+        QScrollBar::handle:vertical {
+            background: #424242;
+            min-height: 20px;
+            border-radius: 5px;
+            margin: 2px;
+        }
+        QScrollBar::handle:vertical:hover {
+            background: #4f4f4f;
+        }
+        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+            height: 0px;
         }
     """)
     
     window = MainWindow()
+    
+    try:
+        from nanogpt_chat.utils.credentials import SecureCredentialManager
+        SecureCredentialManager.migrate_from_file()
+    except Exception as e:
+        print(f"Migration failed: {e}")
+        
     window.show()
     
     sys.exit(app.exec())

@@ -38,10 +38,7 @@ cargo:rustc-check-cfg=cfg(ossl320)
 cargo:rustc-check-cfg=cfg(ossl330)
 cargo:rustc-check-cfg=cfg(ossl340)
 cargo:rustc-check-cfg=cfg(ossl350)
-cargo:rustc-cfg=osslconf="OPENSSL_NO_EC2M"
-cargo:rustc-cfg=osslconf="OPENSSL_NO_ENGINE"
 cargo:rustc-cfg=osslconf="OPENSSL_NO_SSL3_METHOD"
-cargo:rustc-cfg=osslconf="OPENSSL_NO_SM4"
 cargo:rustc-cfg=ossl101
 cargo:rustc-cfg=ossl102
 cargo:rustc-cfg=ossl110
