@@ -1,8 +1,3 @@
-pub mod api;
-pub mod database;
-pub mod security;
-pub mod utils;
-
 use once_cell::sync::Lazy;
 use pyo3::create_exception;
 use pyo3::exceptions::PyRuntimeError;
@@ -14,6 +9,11 @@ pub use crate::database::sqlite::Database;
 pub use crate::security::credentials::CredentialManager;
 use secrecy::ExposeSecret;
 
+pub mod api;
+pub mod database;
+pub mod security;
+pub mod utils;
+
 static RUNTIME: Lazy<Runtime> =
     Lazy::new(|| Runtime::new().expect("Failed to create Tokio runtime"));
 
@@ -24,6 +24,22 @@ create_exception!(nanogpt_core, DatabaseError, PyRuntimeError);
 #[pyclass]
 struct PyNanoGPTClient {
     client: NanoGPTClient,
+}
+
+#[pyclass]
+struct PyChunkIterator {
+    rx: std::sync::mpsc::Receiver<String>,
+}
+
+#[pymethods]
+impl PyChunkIterator {
+    fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    fn __next__(mut slf: PyRefMut<'_, Self>) -> Option<String> {
+        slf.rx.recv().ok()
+    }
 }
 
 #[pymethods]
@@ -61,6 +77,7 @@ impl PyNanoGPTClient {
             temperature,
             max_tokens,
             top_p: None,
+            stream: Some(false),
         };
 
         RUNTIME
@@ -82,6 +99,79 @@ impl PyNanoGPTClient {
                     _ => Err(APIError::new_err("Empty choices - no response from API")),
                 }
             })
+    }
+
+    /// Stream a chat completion request.
+    /// This returns a Python generator that yields content chunks.
+    fn chat_completion_stream(
+        &self,
+        model: String,
+        messages: Vec<(String, String)>,
+        temperature: Option<f32>,
+        max_tokens: Option<u32>,
+    ) -> PyResult<PyObject> {
+        let client = self.client.clone();
+        let messages: Vec<api::client::Message> = messages
+            .into_iter()
+            .map(|(role, content)| api::client::Message { role, content })
+            .collect();
+
+        let request = api::client::ChatRequest {
+            model,
+            messages,
+            temperature,
+            max_tokens,
+            top_p: None,
+            stream: Some(true),
+        };
+
+        Python::with_gil(|py| {
+            let (tx, rx) = std::sync::mpsc::channel();
+
+            // Run the streaming in background
+            std::thread::spawn(move || {
+                let rt = Runtime::new().expect("Failed to create thread local runtime");
+                rt.block_on(async {
+                    use futures_util::StreamExt;
+                    let auth = format!("Bearer {}", client.api_key.lock().await);
+                    let mut response = reqwest::Client::new()
+                        .post("https://nano-gpt.com/api/v1/chat/completions")
+                        .header("Authorization", auth)
+                        .json(&request)
+                        .send()
+                        .await
+                        .expect("Request failed")
+                        .bytes_stream();
+
+                    while let Some(item) = response.next().await {
+                        if let Ok(bytes) = item {
+                            let text = String::from_utf8_lossy(&bytes);
+                            for line in text.lines() {
+                                if line.starts_with("data: ") {
+                                    let data = &line[6..];
+                                    if data == "[DONE]" {
+                                        break;
+                                    }
+                                    if let Ok(chunk) = serde_json::from_str::<api::client::StreamChunk>(data) {
+                                        if let Some(choice) = chunk.choices.first() {
+                                            if let Some(ref content) = choice.delta.content {
+                                                if tx.send(content.clone()).is_err() {
+                                                    return;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            });
+
+            // Create a Python iterator
+            let py_iter = PyChunkIterator { rx };
+            Ok(py_iter.into_py(py))
+        })
     }
 
     /// Retrieve a list of available models from the API.

@@ -702,6 +702,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "dirs",
+ "futures-util",
  "home",
  "once_cell",
  "pyo3",

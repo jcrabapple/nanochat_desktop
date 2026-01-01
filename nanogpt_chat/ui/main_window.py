@@ -19,7 +19,7 @@ from nanogpt_chat.utils import get_api_client, get_database
 
 
 class ChatWorker(QThread):
-    response_received = pyqtSignal(str)
+    chunk_received = pyqtSignal(str)
     finished = pyqtSignal(str)
     error = pyqtSignal(str)
     
@@ -33,12 +33,15 @@ class ChatWorker(QThread):
     
     def run(self):
         try:
-            response = self.api_client.chat_completion_sync(
+            full_response = ""
+            for chunk in self.api_client.chat_completion_stream(
                 self.model, self.messages, self.temperature, self.max_tokens
-            )
+            ):
+                full_response += chunk
+                self.chunk_received.emit(full_response)
             
-            if response:
-                self.finished.emit(response)
+            if full_response:
+                self.finished.emit(full_response)
             else:
                 self.error.emit("Empty response from API")
                 
@@ -89,6 +92,7 @@ class MainWindow(QMainWindow):
         self.sidebar = Sidebar()
         self.sidebar.setFixedWidth(260)
         self.sidebar.session_selected.connect(self.load_session)
+        self.sidebar.session_deleted.connect(self.delete_session)
         self.sidebar.new_chat.connect(self.new_chat)
         self.sidebar.settings_requested.connect(self.show_settings)
         splitter.addWidget(self.sidebar)
@@ -100,101 +104,138 @@ class MainWindow(QMainWindow):
         
         model_toolbar = QWidget()
         model_toolbar.setStyleSheet("""
-            background-color: #252526;
-            border-bottom: 1px solid #333333;
+            background-color: #171717;
+            border-bottom: 1px solid #262626;
         """)
-        model_layout = QVBoxLayout(model_toolbar)
-        model_layout.setContentsMargins(20, 12, 20, 12)
-        model_layout.setSpacing(8)
+        model_layout = QHBoxLayout(model_toolbar)
+        model_layout.setContentsMargins(20, 8, 20, 8)
+        model_layout.setSpacing(12)
         
-        top_row = QHBoxLayout()
-        top_row.setSpacing(12)
-        
-        model_label = QLabel("Model:")
-        model_label.setFont(QFont("", 11))
-        model_label.setStyleSheet("color: #aaaaaa;")
-        top_row.addWidget(model_label)
-        
+        # Model Selector
         self.model_combo = QComboBox()
-        self.model_combo.setMinimumWidth(180)
+        self.model_combo.setMinimumWidth(200)
         self.model_combo.setEditable(True)
         self.model_combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
-        
         self.model_combo.completer().setFilterMode(Qt.MatchFlag.MatchContains)
         self.model_combo.completer().setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
-        
         self.model_combo.currentIndexChanged.connect(self.on_model_changed)
         
+        # Style the combo box to look like a pill itself
         self.model_combo.setStyleSheet("""
             QComboBox {
-                padding: 8px 12px;
-                border: 1px solid #3c3c3c;
-                border-radius: 6px;
+                background-color: #262626;
+                border: 1px solid #333333;
+                border-radius: 10px;
+                padding: 4px 10px;
                 font-size: 13px;
-                min-width: 150px;
-                background-color: #3c3c3c;
-                color: #cccccc;
+                color: #e0e0e0;
             }
-            QComboBox:focus {
-                border-color: #007acc;
+            QComboBox:hover {
+                border-color: #444444;
+                background-color: #2d2d2d;
             }
             QComboBox::drop-down {
                 border: none;
+                width: 24px;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                border-top: 5px solid #888888;
+                width: 0;
+                height: 0;
+                margin-right: 8px;
+            }
+            QComboBox::down-arrow:hover {
+                border-top-color: #ffffff;
             }
             QComboBox QAbstractItemView {
-                background-color: #3c3c3c;
-                color: #cccccc;
+                background-color: #262626;
+                color: #e0e0e0;
                 selection-background-color: #007acc;
+                border: 1px solid #333;
+                outline: none;
+            }
+            QComboBox QLineEdit {
+                background: transparent;
+                color: #e0e0e0;
+                border: none;
             }
         """)
-        top_row.addWidget(self.model_combo)
+        model_layout.addWidget(self.model_combo)
         
-        temp_label = QLabel("Temp:")
-        temp_label.setFont(QFont("", 11))
-        temp_label.setStyleSheet("color: #aaaaaa; margin-left: 10px;")
-        top_row.addWidget(temp_label)
+        # Temperature Pill
+        temp_pill = QFrame()
+        temp_pill.setStyleSheet("""
+            QFrame {
+                background-color: #262626;
+                border: 1px solid #333333;
+                border-radius: 10px;
+            }
+        """)
+        temp_pill_layout = QHBoxLayout(temp_pill)
+        temp_pill_layout.setContentsMargins(10, 2, 10, 2)
+        temp_pill_layout.setSpacing(6)
+        
+        temp_icon = QLabel("🌡️")
+        temp_icon.setStyleSheet("border: none; background: transparent;")
+        temp_pill_layout.addWidget(temp_icon)
         
         self.temp_spin = QDoubleSpinBox()
         self.temp_spin.setRange(0.0, 2.0)
         self.temp_spin.setSingleStep(0.1)
         self.temp_spin.setDecimals(1)
+        self.temp_spin.setFixedWidth(40)
         self.temp_spin.setStyleSheet("""
             QDoubleSpinBox {
-                padding: 6px;
-                background-color: #3c3c3c;
-                color: #cccccc;
-                border: 1px solid #3c3c3c;
-                border-radius: 4px;
+                border: none;
+                background-color: transparent;
+                color: #e0e0e0;
+                font-size: 13px;
             }
+            QDoubleSpinBox::up-button, QDoubleSpinBox::down-button { width: 0px; }
         """)
         self.temp_spin.valueChanged.connect(self.on_params_changed)
-        top_row.addWidget(self.temp_spin)
+        temp_pill_layout.addWidget(self.temp_spin)
+        model_layout.addWidget(temp_pill)
         
-        top_row.addStretch()
-        model_layout.addLayout(top_row)
-        
-        prompt_row = QHBoxLayout()
-        prompt_label = QLabel("System:")
-        prompt_label.setFont(QFont("", 11))
-        prompt_label.setStyleSheet("color: #aaaaaa;")
-        prompt_row.addWidget(prompt_label)
-        
-        self.system_prompt_input = QLineEdit()
-        self.system_prompt_input.setPlaceholderText("Enter system prompt for this chat...")
-        self.system_prompt_input.setStyleSheet("""
-            QLineEdit {
-                padding: 6px 10px;
-                background-color: #3c3c3c;
-                color: #cccccc;
-                border: 1px solid #3c3c3c;
-                border-radius: 4px;
-                font-size: 12px;
+        # System Prompt Button Pill
+        prompt_pill = QFrame()
+        prompt_pill.setStyleSheet("""
+            QFrame {
+                background-color: #262626;
+                border: 1px solid #333333;
+                border-radius: 10px;
             }
         """)
-        self.system_prompt_input.textChanged.connect(self.on_params_changed)
-        prompt_row.addWidget(self.system_prompt_input)
-        model_layout.addLayout(prompt_row)
+        prompt_pill_layout = QHBoxLayout(prompt_pill)
+        prompt_pill_layout.setContentsMargins(4, 2, 4, 2)
         
+        self.system_prompt_btn = QPushButton("📝 System Prompt")
+        self.system_prompt_btn.setStyleSheet("""
+            QPushButton {
+                border: none;
+                background-color: transparent;
+                color: #e0e0e0;
+                font-size: 13px;
+                padding: 6px 12px;
+                text-align: left;
+            }
+            QPushButton:hover {
+                color: #ffffff;
+            }
+        """)
+        self.system_prompt_btn.clicked.connect(self.edit_system_prompt)
+        prompt_pill_layout.addWidget(self.system_prompt_btn)
+        model_layout.addWidget(prompt_pill)
+        
+        # Internal hidden field to keep the text
+        self.system_prompt_input = QLineEdit()
+        self.system_prompt_input.setVisible(False)
+        self.system_prompt_input.textChanged.connect(self.on_params_changed)
+        
+        model_layout.addStretch()
         chat_layout.addWidget(model_toolbar)
         
         self.chat_widget = ChatWidget()
@@ -203,41 +244,62 @@ class MainWindow(QMainWindow):
         chat_scroll.setStyleSheet("""
             QScrollArea {
                 border: none;
-                background-color: #1e1e1e;
+                background-color: #171717;
+            }
+            QScrollBar:vertical {
+                border: none;
+                background: #171717;
+                width: 10px;
+                margin: 0px;
+            }
+            QScrollBar::handle:vertical {
+                background: #2f2f2f;
+                min-height: 20px;
+                border-radius: 5px;
+                margin: 2px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: #3f3f3f;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
             }
         """)
         chat_scroll.setWidget(self.chat_widget)
         chat_layout.addWidget(chat_scroll)
         
         input_container = QWidget()
-        input_container.setFixedHeight(60)
+        input_container.setFixedHeight(64) # Further reduced height
         input_container.setStyleSheet("""
-            background-color: #252526;
-            border-top: 1px solid #333333;
+            background-color: #171717;
         """)
         input_layout = QVBoxLayout(input_container)
-        input_layout.setContentsMargins(12, 0, 12, 0)
+        input_layout.setContentsMargins(0, 0, 0, 12) # Lowered position
         input_layout.setSpacing(0)
         
-        # Combined input area
+        # Centered input bar like ChatGPT
+        input_centering_layout = QHBoxLayout()
+        input_centering_layout.addStretch()
+        
         input_bar = QFrame()
-        input_bar.setFixedHeight(36)
+        input_bar.setFixedWidth(700)
+        input_bar.setFixedHeight(52)
         input_bar.setStyleSheet("""
             QFrame {
-                background-color: #3c3c3c;
-                border: 1px solid #3c3c3c;
-                border-radius: 12px;
+                background-color: #2f2f2f;
+                border: 1px solid #3f3f3f;
+                border-radius: 26px;
             }
             QFrame:focus-within {
-                border-color: #007acc;
+                border-color: #676767;
             }
         """)
         input_bar_layout = QHBoxLayout(input_bar)
-        input_bar_layout.setContentsMargins(12, 0, 8, 0)
+        input_bar_layout.setContentsMargins(20, 0, 12, 0)
         input_bar_layout.setSpacing(0)
         
         self.message_input = QTextEdit()
-        self.message_input.setPlaceholderText("Type your message here...")
+        self.message_input.setPlaceholderText("Message NanoGPT...")
         self.message_input.setFont(QFont("", 13))
         self.message_input.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.message_input.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -245,41 +307,45 @@ class MainWindow(QMainWindow):
             QTextEdit {
                 border: none;
                 background-color: transparent;
-                font-size: 14px;
-                color: #cccccc;
-                padding: 6px 0px;
+                font-size: 15px;
+                color: #ffffff;
+                padding: 14px 0px;
             }
         """)
+        # Install event filter for Enter key
+        self.message_input.installEventFilter(self)
         input_bar_layout.addWidget(self.message_input)
         
-        self.send_button = QPushButton("Send")
-        self.send_button.setFixedSize(64, 28)
-        self.send_button.setFont(QFont("", 9, QFont.Weight.DemiBold))
+        self.send_button = QPushButton()
+        self.send_button.setFixedSize(32, 32)
+        # Use an arrow-like styling for the send button
+        self.send_button.setText("↑")
+        self.send_button.setFont(QFont("", 16, QFont.Weight.Bold))
         self.send_button.setStyleSheet("""
             QPushButton {
-                background: qlineargradient(
-                    x1: 0, y1: 0, x2: 1, y2: 0,
-                    stop: 0 #0066CC, stop: 1 #00A86B
-                );
-                color: white;
+                background-color: #ffffff;
+                color: #000000;
                 border: none;
-                border-radius: 8px;
+                border-radius: 16px;
             }
             QPushButton:hover {
-                opacity: 0.9;
+                background-color: #d7d7d7;
             }
             QPushButton:pressed {
-                opacity: 0.8;
+                background-color: #b7b7b7;
             }
             QPushButton:disabled {
-                background-color: #555;
-                color: #888;
+                background-color: #3f3f3f;
+                color: #676767;
             }
         """)
         self.send_button.clicked.connect(self.send_message)
         input_bar_layout.addWidget(self.send_button, alignment=Qt.AlignmentFlag.AlignVCenter)
         
-        input_layout.addWidget(input_bar)
+        input_centering_layout.addWidget(input_bar)
+        input_centering_layout.addStretch()
+        
+        input_layout.addLayout(input_centering_layout)
         chat_layout.addWidget(input_container)
         
         splitter.addWidget(chat_container)
@@ -363,6 +429,9 @@ class MainWindow(QMainWindow):
                 self.model_worker = ModelFetchWorker(self.api_client)
                 self.model_worker.models_fetched.connect(self.on_models_fetched)
                 self.model_worker.start()
+            
+            # Start fresh with a new chat on every launch
+            self.new_chat()
                 
         except Exception as e:
             QMessageBox.critical(
@@ -387,6 +456,10 @@ class MainWindow(QMainWindow):
         else:
             self.model_combo.setEditText(current)
         self.model_combo.blockSignals(False)
+        
+        # Auto-start new chat on first run if no sessions exist
+        if not self.current_session_id and not self.sidebar.session_list.count():
+            self.new_chat()
     
     def refresh_sessions(self):
         if self.db:
@@ -395,6 +468,29 @@ class MainWindow(QMainWindow):
                 self.sidebar.update_sessions(sessions)
             except Exception as e:
                 print(f"Error loading sessions: {e}")
+    
+    def delete_session(self, session_id: str):
+        if not self.db:
+            return
+            
+        reply = QMessageBox.question(
+            self, "Delete Chat",
+            "Are you sure you want to delete this chat history?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            try:
+                self.db.delete_session(session_id)
+                if self.current_session_id == session_id:
+                    self.current_session_id = None
+                    self.messages = []
+                    self.chat_widget.clear()
+                    self.new_chat()
+                else:
+                    self.refresh_sessions()
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to delete session: {e}")
     
     def load_session(self, session_id: str):
         if not self.db:
@@ -445,8 +541,11 @@ class MainWindow(QMainWindow):
             self.show_settings()
             return
         
+        # Immediate UI Update
         self.chat_widget.add_message("user", content)
         self.message_input.clear()
+        self.send_button.setEnabled(False)
+        QApplication.processEvents()
         
         # Prepare messages including system prompt if it exists
         messages = []
@@ -461,9 +560,6 @@ class MainWindow(QMainWindow):
         model = self.model_combo.currentText()
         temperature = float(self.temp_spin.value())
         
-        self.send_button.setEnabled(False)
-        self.send_button.setText("Thinking...")
-        
         from nanogpt_chat.utils import get_settings
         settings = get_settings()
         max_tokens = settings.get("api", "max_tokens", 4096)
@@ -472,16 +568,21 @@ class MainWindow(QMainWindow):
         self.worker = ChatWorker(
             self.api_client, messages_tuples, model, temperature, max_tokens
         )
+        self.worker.chunk_received.connect(self.on_chunk_received)
         self.worker.finished.connect(self.on_response_finished)
         self.worker.error.connect(self.on_response_error)
         self.worker.start()
     
     @pyqtSlot(str)
+    def on_chunk_received(self, content: str):
+        self.chat_widget.add_message("assistant", content, is_stream=True)
+    
+    @pyqtSlot(str)
     def on_response_finished(self, content: str):
         self.send_button.setEnabled(True)
-        self.send_button.setText("Send")
+        # Fix: Assistant message was already added/updated during streaming
+        # Just update the local message list and database
         
-        self.chat_widget.add_message("assistant", content)
         self.messages.append({"role": "assistant", "content": content})
         
         if self.current_session_id and self.db:
@@ -495,7 +596,7 @@ class MainWindow(QMainWindow):
     @pyqtSlot(str)
     def on_response_error(self, error: str):
         self.send_button.setEnabled(True)
-        self.send_button.setText("Send")
+        # Fix: Button remains an icon
         QMessageBox.critical(self, "API Error", f"Failed to get response: {error}")
     
     def on_model_changed(self, index):
@@ -556,6 +657,23 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to create new chat: {e}")
     
+    def eventFilter(self, obj, event):
+        if hasattr(self, 'message_input') and obj is self.message_input and event.type() == event.Type.KeyPress:
+            if event.key() == Qt.Key.Key_Return and not event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+                self.send_message()
+                return True
+        return super().eventFilter(obj, event)
+    
+    def edit_system_prompt(self):
+        from PyQt6.QtWidgets import QInputDialog
+        text, ok = QInputDialog.getMultiLineText(
+            self, "System Prompt",
+            "Enter instructions for the AI assistant:",
+            self.system_prompt_input.text()
+        )
+        if ok:
+            self.system_prompt_input.setText(text)
+            
     def show_settings(self):
         dialog = SettingsDialog(self)
         if dialog.exec() == QDialog.DialogCode.Accepted:

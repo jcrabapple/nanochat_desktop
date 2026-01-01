@@ -1,11 +1,62 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QListWidget, QListWidgetItem, QPushButton, QLabel
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QListWidget, QListWidgetItem, QPushButton, QLabel
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QIcon
 from datetime import datetime
 
 
+class SessionItemWidget(QWidget):
+    delete_requested = pyqtSignal(str)
+    
+    def __init__(self, session_id, title, parent=None):
+        super().__init__(parent)
+        self.session_id = session_id
+        self.title = title
+        self.setup_ui()
+        
+    def setup_ui(self):
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(12, 8, 8, 8)
+        layout.setSpacing(8)
+        
+        self.title_label = QLabel(self.title)
+        self.title_label.setStyleSheet("color: #cccccc; background: transparent; border: none;")
+        layout.addWidget(self.title_label)
+        
+        layout.addStretch()
+        
+        self.delete_btn = QPushButton("✕")
+        self.delete_btn.setFixedSize(20, 20)
+        self.delete_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.delete_btn.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                color: #666;
+                border: none;
+                border-radius: 4px;
+                font-size: 10px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #ff4d4d;
+                color: white;
+            }
+        """)
+        self.delete_btn.clicked.connect(lambda: self.delete_requested.emit(self.session_id))
+        self.delete_btn.hide() # Hidden by default, shown on hover
+        layout.addWidget(self.delete_btn)
+        
+    def enterEvent(self, event):
+        self.delete_btn.show()
+        super().enterEvent(event)
+        
+    def leaveEvent(self, event):
+        self.delete_btn.hide()
+        super().leaveEvent(event)
+
+
 class Sidebar(QWidget):
     session_selected = pyqtSignal(str)
+    session_deleted = pyqtSignal(str)
     new_chat = pyqtSignal()
     settings_requested = pyqtSignal()
     
@@ -41,18 +92,17 @@ class Sidebar(QWidget):
                 border: none;
                 background-color: #252526;
                 color: #cccccc;
+                outline: none;
             }
             QListWidget::item {
-                padding: 12px 16px;
-                border-bottom: 1px solid #333333;
                 background-color: transparent;
+                border-bottom: 1px solid #333333;
             }
             QListWidget::item:hover {
                 background-color: #2a2d2e;
             }
             QListWidget::item:selected {
                 background-color: #37373d;
-                color: #ffffff;
             }
         """)
         self.session_list.itemClicked.connect(self.on_session_clicked)
@@ -105,9 +155,15 @@ class Sidebar(QWidget):
     def update_sessions(self, sessions):
         self.session_list.clear()
         for session in sessions:
-            item = QListWidgetItem(session.title)
+            item = QListWidgetItem(self.session_list)
             item.setData(Qt.ItemDataRole.UserRole, session.id)
+            
+            widget = SessionItemWidget(session.id, session.title)
+            widget.delete_requested.connect(self.session_deleted.emit)
+            
+            item.setSizeHint(widget.sizeHint())
             self.session_list.addItem(item)
+            self.session_list.setItemWidget(item, widget)
     
     def on_session_clicked(self, item):
         session_id = item.data(Qt.ItemDataRole.UserRole)

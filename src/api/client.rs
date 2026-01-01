@@ -12,12 +12,19 @@ pub struct Message {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeltaMessage {
+    pub role: Option<String>,
+    pub content: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChatRequest {
     pub model: String,
     pub messages: Vec<Message>,
     pub temperature: Option<f32>,
     pub max_tokens: Option<u32>,
     pub top_p: Option<f32>,
+    pub stream: Option<bool>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -55,17 +62,17 @@ pub struct Usage {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct StreamChunk {
-    pub id: String,
-    pub object: String,
-    pub created: u64,
-    pub model: String,
+    pub id: Option<String>,
+    pub object: Option<String>,
+    pub created: Option<u64>,
+    pub model: Option<String>,
     pub choices: Vec<StreamChoice>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct StreamChoice {
     pub index: u32,
-    pub delta: Message,
+    pub delta: DeltaMessage,
     pub finish_reason: Option<String>,
 }
 
@@ -85,8 +92,17 @@ pub struct ModelListResponse {
 }
 
 pub struct NanoGPTClient {
-    client: Client,
-    api_key: Arc<Mutex<String>>,
+    pub client: Client,
+    pub api_key: Arc<Mutex<String>>,
+}
+
+impl Clone for NanoGPTClient {
+    fn clone(&self) -> Self {
+        Self {
+            client: self.client.clone(),
+            api_key: self.api_key.clone(),
+        }
+    }
 }
 
 impl NanoGPTClient {

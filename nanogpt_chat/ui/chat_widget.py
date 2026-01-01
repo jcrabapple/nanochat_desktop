@@ -1,10 +1,11 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QFrame, QSizePolicy
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QSizePolicy, QApplication
 from PyQt6.QtCore import Qt, QSize
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QPalette, QColor
+import markdown
 import textwrap
 
 
-class ChatMessageWidget(QFrame):
+class ChatMessageWidget(QWidget):
     def __init__(self, role: str, content: str, parent=None):
         super().__init__(parent)
         self.role = role
@@ -12,47 +13,82 @@ class ChatMessageWidget(QFrame):
         self.setup_ui()
     
     def setup_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 12, 16, 12)
-        layout.setSpacing(8)
+        # Use QHBoxLayout for horizontal positioning with stretches
+        main_layout = QHBoxLayout(self)
+        main_layout.setContentsMargins(20, 4, 20, 4)
+        main_layout.setSpacing(0)
+        
+        # Message bubble container
+        self.bubble = QFrame()
+        self.bubble.setObjectName("bubble")
+        bubble_layout = QVBoxLayout(self.bubble)
+        bubble_layout.setContentsMargins(16, 10, 16, 10)
+        bubble_layout.setSpacing(0)
         
         if self.role == "user":
-            header_color = "#4fc3f7"
-            bubble_color = "#2b2b2b"
-            bubble_border = "#3c3c3c"
+            bubble_color = "#007acc" # Modern Blue
+            text_color = "#ffffff"
+            bubble_style = "border-bottom-right-radius: 4px;"
+            max_w = 600
         else:
-            header_color = "#81c784"
-            bubble_color = "#252526"
-            bubble_border = "#333333"
+            bubble_color = "#2f2f2f" # Modern Gray
+            text_color = "#ececec"
+            bubble_style = "border-bottom-left-radius: 4px;"
+            max_w = 700
         
-        role_label = QLabel("You" if self.role == "user" else "Assistant")
-        role_font = QFont()
-        role_font.setPointSize(11)
-        role_font.setWeight(QFont.Weight.DemiBold)
-        role_label.setFont(role_font)
-        role_label.setStyleSheet(f"color: {header_color};")
-        
-        layout.addWidget(role_label)
-        
-        content_label = QLabel(self.content)
-        content_label.setWordWrap(True)
-        content_label.setTextFormat(Qt.TextFormat.PlainText)
-        content_label.setFont(QFont("", 12))
-        content_label.setStyleSheet(f"color: #cccccc;")
-        
-        layout.addWidget(content_label)
-        
-        self.setStyleSheet(f"""
-            ChatMessageWidget {{
+        self.bubble.setStyleSheet(f"""
+            #bubble {{
                 background-color: {bubble_color};
-                border: 1px solid {bubble_border};
-                border-radius: 12px;
+                border-radius: 18px;
+                {bubble_style}
             }}
         """)
         
+        # Render Markdown to HTML
+        html_content = markdown.markdown(
+            self.content,
+            extensions=['fenced_code', 'codehilite', 'tables', 'nl2br']
+        )
+        
+        # Add basic CSS for markdown elements
+        styled_html = f"""
+        <style>
+            * {{ color: {text_color}; font-size: 13px; line-height: 1.5; }}
+            code {{ background-color: rgba(0,0,0,0.2); padding: 2px 4px; border-radius: 3px; font-family: 'Cascadia Code', 'Consolas', monospace; }}
+            pre {{ background-color: rgba(0,0,0,0.3); padding: 10px; border-radius: 6px; }}
+            pre code {{ background-color: transparent; padding: 0; }}
+            a {{ color: #4fc3f7; }}
+            p {{ margin: 0; padding: 0; }}
+            ul, ol {{ margin-left: 20px; }}
+        </style>
+        {html_content}
+        """
+        
+        self.content_label = QLabel()
+        self.content_label.setWordWrap(True)
+        self.content_label.setTextFormat(Qt.TextFormat.RichText)
+        self.content_label.setText(styled_html)
+        self.content_label.setFont(QFont("", 12))
+        self.content_label.setStyleSheet("border: none; background: transparent;")
+        self.content_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.LinksAccessibleByMouse)
+        self.content_label.setOpenExternalLinks(True)
+        
+        # Ensure the label can grow but respects its width for wrapping
+        self.content_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        self.bubble.setMaximumWidth(max_w)
+        
+        bubble_layout.addWidget(self.content_label)
+        
+        if self.role == "user":
+            main_layout.addStretch()
+            main_layout.addWidget(self.bubble)
+        else:
+            main_layout.addWidget(self.bubble)
+            main_layout.addStretch()
+        
         self.setSizePolicy(
-            QSizePolicy.Policy.Preferred,
-            QSizePolicy.Policy.Minimum
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Preferred
         )
 
 
@@ -60,13 +96,13 @@ class ChatWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.messages_layout = QVBoxLayout(self)
-        self.messages_layout.setContentsMargins(16, 16, 16, 16)
-        self.messages_layout.setSpacing(10)
+        self.messages_layout.setContentsMargins(0, 0, 0, 0)
+        self.messages_layout.setSpacing(0)
         self.messages_layout.addStretch()
         
         self.setStyleSheet("""
             ChatWidget {
-                background-color: #1e1e1e;
+                background-color: #171717;
             }
         """)
         
@@ -80,25 +116,24 @@ class ChatWidget(QWidget):
             last_index = self.messages_layout.count() - 2
             last_widget = self.messages_layout.itemAt(last_index).widget()
             if last_widget and last_widget.role == "assistant":
-                for i in range(last_widget.layout().count()):
-                    item = last_widget.layout().itemAt(i)
-                    if item.widget() and isinstance(item.widget(), QLabel):
-                        if i == 1:
-                            item.widget().setText(content)
-                            last_widget.content = content
-                            break
+                # Direct access to the content label
+                if hasattr(last_widget, 'content_label'):
+                    last_widget.content_label.setText(content)
+                    last_widget.content = content
+                    # Force layout recalculation for expansion
+                    last_widget.content_label.adjustSize()
+                    last_widget.bubble.adjustSize()
+                    last_widget.adjustSize()
                 return
         
         message_widget = ChatMessageWidget(role, content)
         
-        self.messages_layout.removeItem(self.messages_layout.itemAt(
-            self.messages_layout.count() - 1
-        ))
+        # Insert before the stretch
+        self.messages_layout.insertWidget(self.messages_layout.count() - 1, message_widget)
         
-        self.messages_layout.addWidget(message_widget)
-        self.messages_layout.addStretch()
-        
-        scroll_area = self.parent()
+        # Autoscroll
+        QApplication.processEvents() # Ensure widget is rendered for scroll calculation
+        scroll_area = self.parent().parent() # QScrollArea is grandparent
         if hasattr(scroll_area, 'verticalScrollBar'):
             scroll_area.verticalScrollBar().setValue(
                 scroll_area.verticalScrollBar().maximum()
