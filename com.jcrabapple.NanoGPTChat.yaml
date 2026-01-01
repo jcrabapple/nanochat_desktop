@@ -1,8 +1,10 @@
 app-id: com.jcrabapple.NanoGPTChat
 runtime: org.kde.Platform
-runtime-version: '6.6'
+runtime-version: '6.9'
 sdk: org.kde.Sdk
 command: nanochat-desktop
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
 finish-args:
   - --share=ipc
   - --socket=fallback-x11
@@ -14,19 +16,35 @@ finish-args:
 modules:
   - name: python3-dependencies
     buildsystem: simple
+    build-options:
+      build-args:
+        - --share=network
     build-commands:
-      - pip3 install --prefix=/app PyQt6 PyQt6-WebEngine keyring secretstorage toml
+      - pip3 install --prefix=/app PyQt6 PyQt6-WebEngine keyring secretstorage toml markdown
   
   - name: nanochat-desktop
     buildsystem: simple
+    build-options:
+      append-path: /usr/lib/sdk/rust-stable/bin
+      build-args:
+        - --share=network
+      env:
+        - CARGO_HOME: /run/build/nanochat-desktop/cargo
+        - PYO3_USE_ABI3_FORWARD_COMPATIBILITY: "1"
     sources:
       - type: dir
         path: .
     build-commands:
+      # Build the Rust core using the SDK extension
       - cargo build --release
+      # Ensure the extension is in the right place
       - cp target/release/libnanogpt_core.so nanogpt_chat/nanogpt_core.so
+      # Install app files
       - mkdir -p /app/bin
       - mkdir -p /app/share/nanochat-desktop
       - cp -r . /app/share/nanochat-desktop/
-      - ln -s /app/share/nanochat-desktop/nanogpt_chat/main.py /app/bin/nanochat-desktop
+      # Create wrapper script
+      - echo '#!/bin/bash' > /app/bin/nanochat-desktop
+      - echo 'export PYTHONPATH=/app/share/nanochat-desktop:$PYTHONPATH' >> /app/bin/nanochat-desktop
+      - echo 'python3 -m nanogpt_chat.main "$@"' >> /app/bin/nanochat-desktop
       - chmod +x /app/bin/nanochat-desktop
