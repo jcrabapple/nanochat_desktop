@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=NanoGPT Chat
+Comment=Linux desktop AI chat application using NanoGPT API
+Exec=/opt/nanogpt-chat/bin/python3 -m nanogpt_chat.main
+Icon=nanogpt-chat
+Terminal=false
+Type=Application
+Categories=Network;Chat;
+StartupNotify=true
+X-GNOME-UsesNotifications=true
+X-AppImage-Version=1.0.0
