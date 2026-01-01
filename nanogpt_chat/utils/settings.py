@@ -13,6 +13,8 @@ DEFAULT_SETTINGS = {
     "ui": {
         "dark_mode": True,
         "font_size": 12,
+        "window_width": 900,
+        "window_height": 650,
     }
 }
 

@@ -69,7 +69,13 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("NanoGPT Chat")
-        self.setMinimumSize(QSize(900, 650))
+        
+        from nanogpt_chat.utils import get_settings
+        settings = get_settings()
+        width = settings.get("ui", "window_width", 900)
+        height = settings.get("ui", "window_height", 650)
+        self.resize(width, height)
+        
         self.current_session_id: Optional[str] = None
         self.messages: list = []
         self.api_client = None
@@ -702,4 +708,12 @@ class MainWindow(QMainWindow):
         )
     
     def closeEvent(self, event):
+        try:
+            from nanogpt_chat.utils import get_settings
+            settings = get_settings()
+            size = self.size()
+            settings.set("ui", "window_width", size.width())
+            settings.set("ui", "window_height", size.height())
+        except Exception as e:
+            print(f"Error saving window size: {e}")
         event.accept()

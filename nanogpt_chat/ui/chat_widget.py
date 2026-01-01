@@ -11,39 +11,14 @@ class ChatMessageWidget(QWidget):
         self.role = role
         self.content = content
         self.setup_ui()
+        self.update_content()
     
-    def setup_ui(self):
-        # Use QHBoxLayout for horizontal positioning with stretches
-        main_layout = QHBoxLayout(self)
-        main_layout.setContentsMargins(20, 4, 20, 4)
-        main_layout.setSpacing(0)
-        
-        # Message bubble container
-        self.bubble = QFrame()
-        self.bubble.setObjectName("bubble")
-        bubble_layout = QVBoxLayout(self.bubble)
-        bubble_layout.setContentsMargins(16, 10, 16, 10)
-        bubble_layout.setSpacing(0)
-        
+    def update_content(self):
         if self.role == "user":
-            bubble_color = "#007acc" # Modern Blue
             text_color = "#ffffff"
-            bubble_style = "border-bottom-right-radius: 4px;"
-            max_w = 600
         else:
-            bubble_color = "#2f2f2f" # Modern Gray
             text_color = "#ececec"
-            bubble_style = "border-bottom-left-radius: 4px;"
-            max_w = 700
-        
-        self.bubble.setStyleSheet(f"""
-            #bubble {{
-                background-color: {bubble_color};
-                border-radius: 18px;
-                {bubble_style}
-            }}
-        """)
-        
+            
         # Render Markdown to HTML
         html_content = markdown.markdown(
             self.content,
@@ -60,21 +35,54 @@ class ChatMessageWidget(QWidget):
             a {{ color: #4fc3f7; }}
             p {{ margin: 0; padding: 0; }}
             ul, ol {{ margin-left: 20px; }}
+            table {{ border-collapse: collapse; width: 100%; margin: 10px 0; border: 1px solid #444; }}
+            th, td {{ border: 1px solid #444; padding: 8px; text-align: left; }}
+            th {{ background-color: rgba(255,255,255,0.1); font-weight: bold; }}
         </style>
         {html_content}
         """
+        self.content_label.setText(styled_html)
+
+    def setup_ui(self):
+        # Use QHBoxLayout for horizontal positioning with stretches
+        main_layout = QHBoxLayout(self)
+        main_layout.setContentsMargins(20, 4, 20, 4)
+        main_layout.setSpacing(0)
+        
+        # Message bubble container
+        self.bubble = QFrame()
+        self.bubble.setObjectName("bubble")
+        bubble_layout = QVBoxLayout(self.bubble)
+        bubble_layout.setContentsMargins(16, 10, 16, 10)
+        bubble_layout.setSpacing(0)
+        
+        if self.role == "user":
+            bubble_color = "#007acc" # Modern Blue
+            bubble_style = "border-bottom-right-radius: 4px;"
+            max_w = 600
+        else:
+            bubble_color = "#2f2f2f" # Modern Gray
+            bubble_style = "border-bottom-left-radius: 4px;"
+            max_w = 700
+        
+        self.bubble.setStyleSheet(f"""
+            #bubble {{
+                background-color: {bubble_color};
+                border-radius: 18px;
+                {bubble_style}
+            }}
+        """)
         
         self.content_label = QLabel()
         self.content_label.setWordWrap(True)
         self.content_label.setTextFormat(Qt.TextFormat.RichText)
-        self.content_label.setText(styled_html)
         self.content_label.setFont(QFont("", 12))
         self.content_label.setStyleSheet("border: none; background: transparent;")
         self.content_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.LinksAccessibleByMouse)
         self.content_label.setOpenExternalLinks(True)
         
-        # Ensure the label can grow but respects its width for wrapping
-        self.content_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        # Use Preferred instead of Expanding to keep bubbles tight
+        self.content_label.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
         self.bubble.setMaximumWidth(max_w)
         
         bubble_layout.addWidget(self.content_label)
@@ -118,8 +126,10 @@ class ChatWidget(QWidget):
             if last_widget and last_widget.role == "assistant":
                 # Direct access to the content label
                 if hasattr(last_widget, 'content_label'):
-                    last_widget.content_label.setText(content)
+                    # Re-render markdown for every chunk update
                     last_widget.content = content
+                    last_widget.update_content()
+                    
                     # Force layout recalculation for expansion
                     last_widget.content_label.adjustSize()
                     last_widget.bubble.adjustSize()

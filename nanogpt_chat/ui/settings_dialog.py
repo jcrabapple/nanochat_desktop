@@ -41,9 +41,16 @@ class SettingsDialog(QDialog):
             }
             QTabBar::tab {
                 padding: 12px 24px;
-                font-size: 14px;
+                font-size: 13px;
                 background-color: #252526;
                 color: #888;
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+                margin-right: 2px;
+            }
+            QTabBar::tab:hover {
+                background-color: #2d2d2d;
+                color: #ccc;
             }
             QTabBar::tab:selected {
                 border-bottom: 2px solid #007acc;
@@ -52,219 +59,53 @@ class SettingsDialog(QDialog):
             }
         """)
         
-        api_tab = QWidget()
-        api_layout = QFormLayout(api_tab)
-        api_layout.setContentsMargins(24, 24, 24, 24)
-        api_layout.setSpacing(16)
-        
-        api_header = QLabel("API Configuration")
-        api_header.setFont(QFont("", 12, QFont.Weight.Bold))
-        api_header.setStyleSheet("color: #cccccc;")
-        api_layout.addRow(api_header)
-        
-        self.api_key_input = QLineEdit()
-        self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.api_key_input.setPlaceholderText("Enter your NanoGPT API key")
-        self.api_key_input.setStyleSheet("""
-            QLineEdit {
-                padding: 12px;
-                border: 1px solid #3c3c3c;
-                border-radius: 8px;
-                font-size: 14px;
-                background-color: #3c3c3c;
-                color: #cccccc;
+        # Shared styles for inputs and buttons
+        input_style = """
+            QLineEdit, QTextEdit, QComboBox, QSpinBox, QDoubleSpinBox {
+                padding: 10px;
+                border: 1px solid #333333;
+                border-radius: 6px;
+                background-color: #262626;
+                color: #e0e0e0;
+                font-size: 13px;
             }
-            QLineEdit:focus {
+            QLineEdit:focus, QTextEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {
                 border-color: #007acc;
             }
-        """)
-        api_layout.addRow("API Key:", self.api_key_input)
-        
-        api_info = QLabel(
-            "Get your API key from https://nano-gpt.com/\n"
-            "Your key is stored securely on your system."
-        )
-        api_info.setWordWrap(True)
-        api_info.setStyleSheet("color: #888; font-size: 12px;")
-        api_layout.addRow("", api_info)
-        
-        self.test_api_btn = QPushButton("Test Connection")
-        self.test_api_btn.setStyleSheet("""
-            QPushButton {
-                padding: 10px 20px;
-                background-color: #3c3c3c;
-                color: #cccccc;
-                border: 1px solid #3c3c3c;
-                border-radius: 6px;
-                font-weight: 600;
+            QComboBox::drop-down {
+                border: none;
+                width: 20px;
             }
-            QPushButton:hover {
-                background-color: #454545;
+            QComboBox::down-arrow {
+                image: none;
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                border-top: 4px solid #888888;
+                width: 0;
+                height: 0;
+                margin-top: 2px;
             }
-        """)
-        self.test_api_btn.clicked.connect(self.test_api)
-        api_layout.addRow("", self.test_api_btn)
+        """
         
-        self.tab_widget.addTab(api_tab, "API")
-        
-        model_tab = QWidget()
-        model_layout = QFormLayout(model_tab)
-        model_layout.setContentsMargins(24, 24, 24, 24)
-        model_layout.setSpacing(16)
-        
-        model_header = QLabel("Model Settings")
-        model_header.setFont(QFont("", 12, QFont.Weight.Bold))
-        model_header.setStyleSheet("color: #cccccc;")
-        model_layout.addRow(model_header)
-        
-        self.default_model = QComboBox()
-        self.default_model.setEditable(True)
-        self.default_model.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
-        self.default_model.completer().setFilterMode(Qt.MatchFlag.MatchContains)
-        self.default_model.completer().setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
-        self.default_model.setStyleSheet("""
-            QComboBox {
-                padding: 10px;
-                border: 1px solid #3c3c3c;
-                border-radius: 8px;
-                font-size: 14px;
-                background-color: #3c3c3c;
-                color: #cccccc;
-            }
-            QComboBox QAbstractItemView {
-                background-color: #3c3c3c;
-                color: #cccccc;
-                selection-background-color: #007acc;
-            }
-        """)
-        model_layout.addRow("Default Model:", self.default_model)
-        
-        self.default_system_prompt = QTextEdit()
-        self.default_system_prompt.setMaximumHeight(100)
-        self.default_system_prompt.setStyleSheet("""
-            QTextEdit {
-                padding: 10px;
-                border: 1px solid #3c3c3c;
-                border-radius: 8px;
-                font-size: 14px;
-                background-color: #3c3c3c;
-                color: #cccccc;
-            }
-        """)
-        model_layout.addRow("Default System Prompt:", self.default_system_prompt)
-        
-        self.fetch_models_btn = QPushButton("Fetch Available Models")
-        self.fetch_models_btn.setStyleSheet("""
+        button_secondary_style = """
             QPushButton {
                 padding: 8px 16px;
-                background-color: #3c3c3c;
+                background-color: #333333;
                 color: #cccccc;
-                border: 1px solid #3c3c3c;
-                border-radius: 6px;
-                font-size: 12px;
-            }
-            QPushButton:hover {
-                background-color: #454545;
-            }
-        """)
-        self.fetch_models_btn.clicked.connect(self.fetch_models)
-        model_layout.addRow("", self.fetch_models_btn)
-        
-        self.temperature = QDoubleSpinBox()
-        self.temperature.setRange(0.0, 2.0)
-        self.temperature.setValue(0.7)
-        self.temperature.setStepType(QDoubleSpinBox.StepType.AdaptiveDecimalStepType)
-        self.temperature.setDecimals(2)
-        self.temperature.setStyleSheet("""
-            QDoubleSpinBox {
-                padding: 10px;
-                border: 1px solid #3c3c3c;
-                border-radius: 8px;
-                background-color: #3c3c3c;
-                color: #cccccc;
-            }
-        """)
-        model_layout.addRow("Temperature:", self.temperature)
-        
-        self.max_tokens = QSpinBox()
-        self.max_tokens.setRange(1, 32768)
-        self.max_tokens.setValue(4096)
-        self.max_tokens.setStyleSheet("""
-            QSpinBox {
-                padding: 10px;
-                border: 1px solid #3c3c3c;
-                border-radius: 8px;
-                background-color: #3c3c3c;
-                color: #cccccc;
-            }
-        """)
-        model_layout.addRow("Max Tokens:", self.max_tokens)
-        
-        self.tab_widget.addTab(model_tab, "Model")
-        
-        appearance_tab = QWidget()
-        appearance_layout = QFormLayout(appearance_tab)
-        appearance_layout.setContentsMargins(24, 24, 24, 24)
-        appearance_layout.setSpacing(16)
-        
-        appearance_header = QLabel("Appearance")
-        appearance_header.setFont(QFont("", 12, QFont.Weight.Bold))
-        appearance_header.setStyleSheet("color: #cccccc;")
-        appearance_layout.addRow(appearance_header)
-        
-        self.dark_mode = QCheckBox("Dark Mode")
-        self.dark_mode.setStyleSheet("""
-            QCheckBox {
-                padding: 8px;
-                font-size: 14px;
-                color: #cccccc;
-            }
-        """)
-        appearance_layout.addRow("Theme:", self.dark_mode)
-        
-        self.font_size = QSpinBox()
-        self.font_size.setRange(8, 24)
-        self.font_size.setValue(12)
-        self.font_size.setStyleSheet("""
-            QSpinBox {
-                padding: 10px;
-                border: 1px solid #3c3c3c;
-                border-radius: 8px;
-                background-color: #3c3c3c;
-                color: #cccccc;
-            }
-        """)
-        appearance_layout.addRow("Font Size:", self.font_size)
-        
-        self.tab_widget.addTab(appearance_tab, "Appearance")
-        
-        layout.addWidget(self.tab_widget)
-        
-        button_layout = QHBoxLayout()
-        button_layout.setContentsMargins(24, 20, 24, 20)
-        button_layout.addStretch()
-        
-        self.cancel_btn = QPushButton("Cancel")
-        self.cancel_btn.setStyleSheet("""
-            QPushButton {
-                padding: 10px 24px;
-                background-color: #3c3c3c;
-                color: #cccccc;
-                border: none;
+                border: 1px solid #444444;
                 border-radius: 6px;
                 font-weight: 600;
             }
             QPushButton:hover {
-                background-color: #454545;
+                background-color: #444444;
+                border-color: #555555;
+                color: #ffffff;
             }
-        """)
-        self.cancel_btn.clicked.connect(self.reject)
-        button_layout.addWidget(self.cancel_btn)
+        """
         
-        self.save_btn = QPushButton("Save")
-        self.save_btn.setStyleSheet("""
+        button_primary_style = """
             QPushButton {
-                padding: 10px 24px;
+                padding: 8px 24px;
                 background-color: #007acc;
                 color: white;
                 border: none;
@@ -274,11 +115,141 @@ class SettingsDialog(QDialog):
             QPushButton:hover {
                 background-color: #118ad3;
             }
+        """
+        
+        api_tab = QWidget()
+        api_layout = QFormLayout(api_tab)
+        api_layout.setContentsMargins(30, 30, 30, 30)
+        api_layout.setSpacing(20)
+        
+        api_header = QLabel("API Configuration")
+        api_header.setFont(QFont("", 11, QFont.Weight.Bold))
+        api_header.setStyleSheet("color: #888; text-transform: uppercase; letter-spacing: 1px;")
+        api_layout.addRow(api_header)
+        
+        self.api_key_input = QLineEdit()
+        self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.api_key_input.setPlaceholderText("Paste your NanoGPT API key here")
+        self.api_key_input.setStyleSheet(input_style)
+        api_layout.addRow("API Key", self.api_key_input)
+        
+        api_info = QLabel(
+            "Get your key from <a href='https://nano-gpt.com/' style='color: #4fc3f7;'>nano-gpt.com</a>. "
+            "It will be stored in your system's secure keyring."
+        )
+        api_info.setOpenExternalLinks(True)
+        api_info.setWordWrap(True)
+        api_info.setStyleSheet("color: #777; font-size: 12px; margin-top: -10px;")
+        api_layout.addRow("", api_info)
+        
+        self.test_api_btn = QPushButton("Test Connection")
+        self.test_api_btn.setFixedWidth(150)
+        self.test_api_btn.setStyleSheet(button_secondary_style)
+        self.test_api_btn.clicked.connect(self.test_api)
+        api_layout.addRow("", self.test_api_btn)
+        
+        self.tab_widget.addTab(api_tab, "API")
+        
+        model_tab = QWidget()
+        model_layout = QFormLayout(model_tab)
+        model_layout.setContentsMargins(30, 30, 30, 30)
+        model_layout.setSpacing(20)
+        
+        model_header = QLabel("Default Session Defaults")
+        model_header.setFont(QFont("", 11, QFont.Weight.Bold))
+        model_header.setStyleSheet("color: #888; text-transform: uppercase; letter-spacing: 1px;")
+        model_layout.addRow(model_header)
+        
+        self.default_model = QComboBox()
+        self.default_model.setEditable(True)
+        self.default_model.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        self.default_model.completer().setFilterMode(Qt.MatchFlag.MatchContains)
+        self.default_model.completer().setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+        self.default_model.setStyleSheet(input_style)
+        model_layout.addRow("Default Model", self.default_model)
+        
+        self.fetch_models_btn = QPushButton("🔄 Fetch All Models")
+        self.fetch_models_btn.setFixedWidth(180)
+        self.fetch_models_btn.setStyleSheet(button_secondary_style)
+        self.fetch_models_btn.clicked.connect(self.fetch_models)
+        model_layout.addRow("", self.fetch_models_btn)
+        
+        self.default_system_prompt = QTextEdit()
+        self.default_system_prompt.setMaximumHeight(80)
+        self.default_system_prompt.setPlaceholderText("e.g. You are a helpful AI assistant.")
+        self.default_system_prompt.setStyleSheet(input_style)
+        model_layout.addRow("System Prompt", self.default_system_prompt)
+        
+        params_layout = QHBoxLayout()
+        params_layout.setSpacing(20)
+        
+        self.temperature = QDoubleSpinBox()
+        self.temperature.setRange(0.0, 2.0)
+        self.temperature.setValue(0.7)
+        self.temperature.setStepType(QDoubleSpinBox.StepType.AdaptiveDecimalStepType)
+        self.temperature.setDecimals(2)
+        self.temperature.setStyleSheet(input_style)
+        
+        self.max_tokens = QSpinBox()
+        self.max_tokens.setRange(1, 128000)
+        self.max_tokens.setValue(4096)
+        self.max_tokens.setSuffix(" tokens")
+        self.max_tokens.setStyleSheet(input_style)
+        
+        model_layout.addRow("Temperature", self.temperature)
+        model_layout.addRow("Max Tokens", self.max_tokens)
+        
+        self.tab_widget.addTab(model_tab, "Model")
+        
+        appearance_tab = QWidget()
+        appearance_layout = QFormLayout(appearance_tab)
+        appearance_layout.setContentsMargins(30, 30, 30, 30)
+        appearance_layout.setSpacing(20)
+        
+        appearance_header = QLabel("Personalization")
+        appearance_header.setFont(QFont("", 11, QFont.Weight.Bold))
+        appearance_header.setStyleSheet("color: #888; text-transform: uppercase; letter-spacing: 1px;")
+        appearance_layout.addRow(appearance_header)
+        
+        self.dark_mode = QCheckBox("Enable Dark Theme")
+        self.dark_mode.setChecked(True)
+        self.dark_mode.setStyleSheet("""
+            QCheckBox { color: #e0e0e0; font-size: 13px; spacing: 10px; }
+            QCheckBox::indicator { width: 18px; height: 18px; border-radius: 4px; border: 1px solid #444; background: #262626; }
+            QCheckBox::indicator:checked { background: #007acc; border-color: #007acc; image: none; }
         """)
+        appearance_layout.addRow("Interface", self.dark_mode)
+        
+        self.font_size = QSpinBox()
+        self.font_size.setRange(8, 32)
+        self.font_size.setValue(12)
+        self.font_size.setSuffix(" pt")
+        self.font_size.setStyleSheet(input_style)
+        appearance_layout.addRow("Font Size", self.font_size)
+        
+        self.tab_widget.addTab(appearance_tab, "Appearance")
+        
+        layout.addWidget(self.tab_widget)
+        
+        # Bottom Button Row
+        bottom_container = QFrame()
+        bottom_container.setStyleSheet("background-color: #252526; border-top: 1px solid #333333;")
+        button_layout = QHBoxLayout(bottom_container)
+        button_layout.setContentsMargins(24, 16, 24, 16)
+        button_layout.setSpacing(12)
+        button_layout.addStretch()
+        
+        self.cancel_btn = QPushButton("Cancel")
+        self.cancel_btn.setStyleSheet(button_secondary_style)
+        self.cancel_btn.clicked.connect(self.reject)
+        button_layout.addWidget(self.cancel_btn)
+        
+        self.save_btn = QPushButton("Save Changes")
+        self.save_btn.setStyleSheet(button_primary_style)
         self.save_btn.clicked.connect(self.save_settings)
         button_layout.addWidget(self.save_btn)
         
-        layout.addLayout(button_layout)
+        layout.addWidget(bottom_container)
     
     def fetch_models(self):
         api_key = self.api_key_input.text().strip()
@@ -309,7 +280,7 @@ class SettingsDialog(QDialog):
             QMessageBox.critical(self, "Error", f"Failed to fetch models: {e}")
         finally:
             self.fetch_models_btn.setEnabled(True)
-            self.fetch_models_btn.setText("Fetch Available Models")
+            self.fetch_models_btn.setText("🔄 Fetch All Models")
     
     def load_settings(self):
         try:
